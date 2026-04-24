@@ -1,50 +1,82 @@
 import { useState } from "react";
-import reactLogo from "./assets/react.svg";
-import { commands } from "./bindings";
-import "./App.css";
+import {
+  MantineProvider,
+  AppShell,
+  Stack,
+  ActionIcon,
+  Divider,
+} from "@mantine/core";
+import "@mantine/core/styles.css";
+import {
+  IconFolderOpen,
+  IconSettings,
+  IconSun,
+  IconMoon,
+} from "@tabler/icons-react";
+import { NavHeader } from "./components/NavHeader";
+import { NavItem } from "./components/NavItem";
+
+type ColorScheme = "light" | "dark";
+
+const NAV_ITEMS = [
+  { icon: IconFolderOpen, label: "Projects" },
+  { icon: IconSettings, label: "Settings" },
+];
 
 function App() {
-  const [greetMsg, setGreetMsg] = useState("");
-  const [name, setName] = useState("");
-
-  async function greet() {
-    // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
-    setGreetMsg(await commands.greet(name));
-  }
+  const [colorScheme, setColorScheme] = useState<ColorScheme>("dark");
+  const [opened, setOpened] = useState(true);
 
   return (
-    <main className="container">
-      <h1>Welcome to Tauri + React</h1>
-
-      <div className="row">
-        <a href="https://vite.dev" target="_blank">
-          <img src="/vite.svg" className="logo vite" alt="Vite logo" />
-        </a>
-        <a href="https://tauri.app" target="_blank">
-          <img src="/tauri.svg" className="logo tauri" alt="Tauri logo" />
-        </a>
-        <a href="https://react.dev" target="_blank">
-          <img src={reactLogo} className="logo react" alt="React logo" />
-        </a>
-      </div>
-      <p>Click on the Tauri, Vite, and React logos to learn more.</p>
-
-      <form
-        className="row"
-        onSubmit={(e) => {
-          e.preventDefault();
-          greet();
-        }}
+    <MantineProvider defaultColorScheme="dark" forceColorScheme={colorScheme}>
+      <AppShell
+        navbar={{ width: opened ? 220 : 60, breakpoint: "sm" }}
+        padding={0}
       >
-        <input
-          id="greet-input"
-          onChange={(e) => setName(e.currentTarget.value)}
-          placeholder="Enter a name..."
-        />
-        <button type="submit">Greet</button>
-      </form>
-      <p>{greetMsg}</p>
-    </main>
+        <AppShell.Navbar>
+          <Stack justify="space-between" style={{ height: "100%" }}>
+            <div>
+              <NavHeader
+                expanded={opened}
+                onToggle={() => setOpened((o) => !o)}
+              />
+              <Divider />
+              <Stack gap={4} style={{ padding: "8px 4px" }}>
+                {NAV_ITEMS.map((item) => (
+                  <NavItem
+                    key={item.label}
+                    icon={item.icon}
+                    label={item.label}
+                    expanded={opened}
+                  />
+                ))}
+              </Stack>
+            </div>
+
+            <div style={{ padding: "8px 8px 16px" }}>
+              <Divider mb={8} />
+              <ActionIcon
+                variant="subtle"
+                color="gray"
+                size="lg"
+                onClick={() =>
+                  setColorScheme((s) => (s === "dark" ? "light" : "dark"))
+                }
+                aria-label="Toggle color scheme"
+              >
+                {colorScheme === "dark" ? (
+                  <IconSun size={20} stroke={1.5} />
+                ) : (
+                  <IconMoon size={20} stroke={1.5} />
+                )}
+              </ActionIcon>
+            </div>
+          </Stack>
+        </AppShell.Navbar>
+
+        <AppShell.Main />
+      </AppShell>
+    </MantineProvider>
   );
 }
 
