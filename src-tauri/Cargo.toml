@@ -22,4 +22,7 @@ tauri = { version = "2", features = [] }
 tauri-plugin-opener = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+specta = { version = "^2.0.0-rc", features = ["derive"] }
+specta-typescript = "^0.0.7"
+tauri-specta = { version = "^2.0.0-rc", features = ["derive", "typescript"] }
 
