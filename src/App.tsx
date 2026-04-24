@@ -5,8 +5,11 @@ import {
   Stack,
   ActionIcon,
   Divider,
+  Box,
 } from "@mantine/core";
+import { useDisclosure } from "@mantine/hooks";
 import "@mantine/core/styles.css";
+import "./App.css";
 import {
   IconFolderOpen,
   IconSettings,
@@ -25,36 +28,39 @@ const NAV_ITEMS = [
 
 function App() {
   const [colorScheme, setColorScheme] = useState<ColorScheme>("dark");
-  const [opened, setOpened] = useState(true);
+  const [opened, { toggle }] = useDisclosure(true);
 
   return (
-    <MantineProvider defaultColorScheme="dark" forceColorScheme={colorScheme}>
+    <MantineProvider forceColorScheme={colorScheme}>
       <AppShell
         navbar={{ width: opened ? 220 : 60, breakpoint: "sm" }}
         padding={0}
       >
         <AppShell.Navbar>
-          <Stack justify="space-between" style={{ height: "100%" }}>
-            <div>
-              <NavHeader
-                expanded={opened}
-                onToggle={() => setOpened((o) => !o)}
-              />
-              <Divider />
-              <Stack gap={4} style={{ padding: "8px 4px" }}>
-                {NAV_ITEMS.map((item) => (
-                  <NavItem
-                    key={item.label}
-                    icon={item.icon}
-                    label={item.label}
-                    expanded={opened}
-                  />
-                ))}
-              </Stack>
-            </div>
+          <AppShell.Section>
+            <NavHeader
+              expanded={opened}
+              onToggle={toggle}
+            />
+            <Divider />
+          </AppShell.Section>
 
-            <div style={{ padding: "8px 8px 16px" }}>
-              <Divider mb={8} />
+          <AppShell.Section grow>
+            <Stack gap={4} p={4}>
+              {NAV_ITEMS.map((item) => (
+                <NavItem
+                  key={item.label}
+                  icon={item.icon}
+                  label={item.label}
+                  expanded={opened}
+                />
+              ))}
+            </Stack>
+          </AppShell.Section>
+
+          <AppShell.Section>
+            <Divider mb={8} />
+            <Box p={8} pb={16}>
               <ActionIcon
                 variant="subtle"
                 color="gray"
@@ -70,8 +76,8 @@ function App() {
                   <IconMoon size={20} stroke={1.5} />
                 )}
               </ActionIcon>
-            </div>
-          </Stack>
+            </Box>
+          </AppShell.Section>
         </AppShell.Navbar>
 
         <AppShell.Main />
