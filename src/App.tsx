@@ -60,7 +60,11 @@ function App() {
 
           <AppShell.Section>
             <Divider mb={8} />
-            <Box p={8} pb={16}>
+            <Box
+              p={8}
+              pb={16}
+              style={{ display: "flex", justifyContent: opened ? "flex-start" : "center" }}
+            >
               <ActionIcon
                 variant="subtle"
                 color="gray"
