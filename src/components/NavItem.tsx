@@ -1,8 +1,8 @@
 import { NavLink } from "@mantine/core";
-import type { IconProps } from "@tabler/icons-react";
+import type { TablerIcon } from "@tabler/icons-react";
 
 interface NavItemProps {
-  icon: React.FC<IconProps>;
+  icon: TablerIcon;
   label: string;
   expanded: boolean;
 }
