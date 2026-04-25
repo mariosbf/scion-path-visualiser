@@ -1,3 +1,5 @@
+pub mod topology;
+
 use tauri_specta::{collect_commands, Builder};
 
 #[tauri::command]
