@@ -39,6 +39,11 @@ export function layoutGraph(
     routersByAs.set(rn.parentId, list);
   }
 
+  // Sort each group by node.id for stable, reproducible router positions
+  for (const [asId, routers] of routersByAs) {
+    routersByAs.set(asId, [...routers].sort((a, b) => a.id.localeCompare(b.id)));
+  }
+
   // AS node dimensions keyed by AS node id
   const asDims = new Map<string, { width: number; height: number }>();
   for (const asNode of asNodes) {
@@ -63,7 +68,7 @@ export function layoutGraph(
 
     const childIds = new Set(children.map((n) => n.id));
     for (const asNode of children) {
-      const dim = asDims.get(asNode.id)!;
+      const dim = asDims.get(asNode.id) ?? { width: AS_MIN_WIDTH, height: AS_HEIGHT };
       g.setNode(asNode.id, { width: dim.width, height: dim.height });
     }
 
@@ -83,7 +88,7 @@ export function layoutGraph(
     let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
     for (const asNode of children) {
       const p = g.node(asNode.id);
-      const dim = asDims.get(asNode.id)!;
+      const dim = asDims.get(asNode.id) ?? { width: AS_MIN_WIDTH, height: AS_HEIGHT };
       const x = p.x - dim.width / 2;
       const y = p.y - dim.height / 2;
       asPositions.set(asNode.id, { x, y });
@@ -95,7 +100,8 @@ export function layoutGraph(
 
     // Shift so top-left of content = (ISD_PADDING, ISD_PADDING)
     for (const asNode of children) {
-      const p = asPositions.get(asNode.id)!;
+      const p = asPositions.get(asNode.id);
+      if (!p) continue;
       asPositions.set(asNode.id, {
         x: p.x - minX + ISD_PADDING,
         y: p.y - minY + ISD_PADDING,
@@ -129,10 +135,12 @@ export function layoutGraph(
     }
 
     if (node.type === "router") {
-      const asId = node.parentId!;
+      const asId = node.parentId;
+      if (!asId) return node;
       const dim = asDims.get(asId) ?? { width: AS_MIN_WIDTH, height: AS_HEIGHT };
       const siblings = routersByAs.get(asId) ?? [];
       const idx = siblings.findIndex((r) => r.id === node.id);
+      if (idx === -1) return node;
       const count = siblings.length;
       const spacing = dim.width / (count + 1);
       return {
