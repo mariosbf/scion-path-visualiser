@@ -18,6 +18,7 @@ import {
 } from "@tabler/icons-react";
 import { NavHeader } from "./components/NavHeader";
 import { NavItem } from "./components/NavItem";
+import { TopologyView } from "./components/TopologyView";
 
 type ColorScheme = "light" | "dark";
 
@@ -84,7 +85,9 @@ function App() {
           </AppShell.Section>
         </AppShell.Navbar>
 
-        <AppShell.Main />
+        <AppShell.Main style={{ height: "100vh" }}>
+          <TopologyView />
+        </AppShell.Main>
       </AppShell>
     </MantineProvider>
   );
