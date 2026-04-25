@@ -41,6 +41,9 @@ describe("layoutGraph", () => {
     expect(isdNode.position.x).toBeGreaterThanOrEqual(0);
     // AS nodes get distinct positions within ISD
     expect(asNodes[0].position).toBeDefined();
+    expect(asNodes[1].position).toBeDefined();
+    // Parent and child AS should have different y positions
+    expect(asNodes[0].position.y).not.toBe(asNodes[1].position.y);
   });
 
   it("assigns width and height style to ISD and AS nodes", () => {
@@ -67,8 +70,8 @@ describe("layoutGraph", () => {
     const laid = layoutGraph(nodes, edges);
     const routerNodes = laid.filter((n) => n.type === "router");
     for (const rn of routerNodes) {
-      expect(rn.position.x).toBeDefined();
-      expect(rn.position.y).toBeDefined();
+      expect(rn.position.x).toBeGreaterThan(0);
+      expect(rn.position.y).toBeGreaterThan(0);
     }
   });
 });
