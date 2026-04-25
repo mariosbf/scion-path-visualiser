@@ -25,6 +25,7 @@ fn load_project(folder: String, topo_file: String) -> Result<Topology, String> {
         ));
     }
 
+    // scion.sh topology generates files at gen/AS{hex}/topology.json
     let pattern = format!("{folder}/gen/AS*/topology.json");
     let raw_ases: Vec<RawAsTopology> = glob::glob(&pattern)
         .map_err(|e| format!("Invalid glob pattern: {e}"))?

@@ -86,6 +86,23 @@ export function TopologyView() {
 
   return (
     <div style={{ width: "100%", height: "100%", position: "relative" }}>
+      {error && (
+        <div
+          style={{
+            position: "absolute",
+            top: 12,
+            left: "50%",
+            transform: "translateX(-50%)",
+            zIndex: 20,
+            maxWidth: 480,
+          }}
+        >
+          <Text c="red" size="sm" style={{ wordBreak: "break-word", textAlign: "center" }}>
+            {error}
+          </Text>
+        </div>
+      )}
+
       {nodes.length === 0 && (
         <div
           style={{
@@ -97,16 +114,9 @@ export function TopologyView() {
             zIndex: 10,
           }}
         >
-          <Stack align="center" gap="md">
-            {error && (
-              <Text c="red" size="sm" style={{ maxWidth: 400, wordBreak: "break-word" }}>
-                {error}
-              </Text>
-            )}
-            <Button onClick={handleOpen} loading={loading} size="md">
-              Open Project
-            </Button>
-          </Stack>
+          <Button onClick={handleOpen} loading={loading} size="md">
+            Open Project
+          </Button>
         </div>
       )}
 
