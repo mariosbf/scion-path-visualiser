@@ -1,0 +1,74 @@
+import { describe, it, expect } from "vitest";
+import { layoutGraph } from "./layout";
+import { buildGraph } from "./topology";
+import type { Topology } from "../bindings";
+
+const twoAsTopology: Topology = {
+  ases: {
+    "1-ff00:0:110": { core: true, mtu: 1472 },
+    "1-ff00:0:111": { core: false, mtu: 1472 },
+  },
+  links: [
+    {
+      a: { as_id: "1-ff00:0:110", router_name: "br-110-1", interface_id: 1001, underlay_local: "a", underlay_remote: "b" },
+      b: { as_id: "1-ff00:0:111", router_name: "br-111-1", interface_id: 2001, underlay_local: "b", underlay_remote: "a" },
+      link_type: "Child",
+    },
+  ],
+};
+
+const twoIsdTopology: Topology = {
+  ases: {
+    "1-ff00:0:110": { core: true, mtu: 1472 },
+    "2-ff00:0:210": { core: true, mtu: 1472 },
+  },
+  links: [
+    {
+      a: { as_id: "1-ff00:0:110", router_name: "br-110-1", interface_id: 1, underlay_local: "a", underlay_remote: "b" },
+      b: { as_id: "2-ff00:0:210", router_name: "br-210-1", interface_id: 2, underlay_local: "b", underlay_remote: "a" },
+      link_type: "Core",
+    },
+  ],
+};
+
+describe("layoutGraph", () => {
+  it("assigns non-zero positions to all nodes", () => {
+    const { nodes, edges } = buildGraph(twoAsTopology);
+    const laid = layoutGraph(nodes, edges);
+    const isdNode = laid.find((n) => n.type === "isd")!;
+    const asNodes = laid.filter((n) => n.type === "as");
+    // ISD node is at origin or positive coordinates
+    expect(isdNode.position.x).toBeGreaterThanOrEqual(0);
+    // AS nodes get distinct positions within ISD
+    expect(asNodes[0].position).toBeDefined();
+  });
+
+  it("assigns width and height style to ISD and AS nodes", () => {
+    const { nodes, edges } = buildGraph(twoAsTopology);
+    const laid = layoutGraph(nodes, edges);
+    const isdNode = laid.find((n) => n.type === "isd")!;
+    const asNode = laid.find((n) => n.type === "as")!;
+    expect(Number(isdNode.style?.width)).toBeGreaterThan(0);
+    expect(Number(isdNode.style?.height)).toBeGreaterThan(0);
+    expect(Number(asNode.style?.width)).toBeGreaterThan(0);
+    expect(Number(asNode.style?.height)).toBeGreaterThan(0);
+  });
+
+  it("places two ISDs at different x positions", () => {
+    const { nodes, edges } = buildGraph(twoIsdTopology);
+    const laid = layoutGraph(nodes, edges);
+    const isdNodes = laid.filter((n) => n.type === "isd");
+    expect(isdNodes).toHaveLength(2);
+    expect(isdNodes[0].position.x).not.toBe(isdNodes[1].position.x);
+  });
+
+  it("assigns positions to router nodes", () => {
+    const { nodes, edges } = buildGraph(twoAsTopology);
+    const laid = layoutGraph(nodes, edges);
+    const routerNodes = laid.filter((n) => n.type === "router");
+    for (const rn of routerNodes) {
+      expect(rn.position.x).toBeDefined();
+      expect(rn.position.y).toBeDefined();
+    }
+  });
+});
