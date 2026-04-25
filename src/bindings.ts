@@ -7,6 +7,14 @@
 export const commands = {
 async greet(name: string) : Promise<string> {
     return await TAURI_INVOKE("greet", { name });
+},
+async loadProject(folder: string, topoFile: string) : Promise<Result<Topology, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("load_project", { folder, topoFile }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
 }
 }
 
@@ -20,7 +28,11 @@ async greet(name: string) : Promise<string> {
 
 /** user-defined types **/
 
-
+export type AsInfo = { core: boolean; mtu: number | null }
+export type Link = { a: LinkEndpoint; b: LinkEndpoint; link_type: LinkType }
+export type LinkEndpoint = { as_id: string; router_name: string; interface_id: number; underlay_local: string; underlay_remote: string }
+export type LinkType = "Core" | "Child" | "Peer"
+export type Topology = { ases: { [key in string]: AsInfo }; links: Link[] }
 
 /** tauri-specta globals **/
 
