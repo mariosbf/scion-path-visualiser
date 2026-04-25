@@ -60,7 +60,7 @@ export function buildGraph(topology: Topology): {
       id: `as-${asId}`,
       type: "as",
       data: {
-        label: asId.split("-")[1],
+        label: asId.split("-")[1], // show only AS hex, ISD is the parent node's label
         asId,
         core: asInfo.core,
         mtu: asInfo.mtu,
@@ -76,7 +76,7 @@ export function buildGraph(topology: Topology): {
 
   for (const link of topology.links) {
     for (const ep of [link.a, link.b]) {
-      const routerId = `router-${ep.as_id}-${ep.router_name}`;
+      const routerId = `router-${ep.as_id}-${ep.router_name}-${ep.interface_id}`;
       if (!seenRouters.has(routerId)) {
         seenRouters.add(routerId);
         nodes.push({
@@ -99,8 +99,8 @@ export function buildGraph(topology: Topology): {
 
     edges.push({
       id: `edge-${link.a.as_id}-${link.a.interface_id}-${link.b.as_id}-${link.b.interface_id}`,
-      source: `router-${link.a.as_id}-${link.a.router_name}`,
-      target: `router-${link.b.as_id}-${link.b.router_name}`,
+      source: `router-${link.a.as_id}-${link.a.router_name}-${link.a.interface_id}`,
+      target: `router-${link.b.as_id}-${link.b.router_name}-${link.b.interface_id}`,
       data: { linkType: link.link_type },
     });
   }

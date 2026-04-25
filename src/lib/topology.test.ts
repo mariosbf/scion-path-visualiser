@@ -43,7 +43,7 @@ describe("buildGraph", () => {
     expect(asNodes.every((n) => n.parentId === "isd-1")).toBe(true);
   });
 
-  it("creates one router node per unique (as_id, router_name) pair", () => {
+  it("creates one router node per unique (as_id, router_name, interface_id) triple", () => {
     const { nodes } = buildGraph(tinyTopology);
     const routerNodes = nodes.filter((n) => n.type === "router");
     expect(routerNodes).toHaveLength(2);
@@ -53,8 +53,8 @@ describe("buildGraph", () => {
   it("creates edges connecting router nodes with link type", () => {
     const { edges } = buildGraph(tinyTopology);
     expect(edges).toHaveLength(1);
-    expect(edges[0].source).toBe("router-1-ff00:0:110-br1-ff00_0_110-1");
-    expect(edges[0].target).toBe("router-1-ff00:0:111-br1-ff00_0_111-1");
+    expect(edges[0].source).toBe("router-1-ff00:0:110-br1-ff00_0_110-1-1001");
+    expect(edges[0].target).toBe("router-1-ff00:0:111-br1-ff00_0_111-1-2001");
     expect(edges[0].data?.linkType).toBe("Child");
   });
 
@@ -72,15 +72,21 @@ describe("buildGraph", () => {
           link_type: "Child",
         },
         {
-          a: { as_id: "1-ff00:0:110", router_name: "br-110-1", interface_id: 1, underlay_local: "a", underlay_remote: "c" },
-          b: { as_id: "1-ff00:0:112", router_name: "br-112-1", interface_id: 3, underlay_local: "c", underlay_remote: "a" },
+          a: { as_id: "1-ff00:0:110", router_name: "br-110-2", interface_id: 3, underlay_local: "a", underlay_remote: "c" },
+          b: { as_id: "1-ff00:0:112", router_name: "br-112-1", interface_id: 4, underlay_local: "c", underlay_remote: "a" },
           link_type: "Child",
         },
       ],
     };
     const { nodes } = buildGraph(multiLink);
     const routerIds = nodes.filter((n) => n.type === "router").map((n) => n.id);
-    expect(new Set(routerIds).size).toBe(routerIds.length);
-    expect(routerIds.filter((id) => id.includes("br-110-1"))).toHaveLength(1);
+    expect(new Set(routerIds).size).toBe(routerIds.length); // all unique
+    expect(routerIds).toHaveLength(4); // 4 distinct router+interface pairs
+  });
+
+  it("returns empty nodes and edges for an empty topology", () => {
+    const { nodes, edges } = buildGraph({ ases: {}, links: [] });
+    expect(nodes).toHaveLength(0);
+    expect(edges).toHaveLength(0);
   });
 });
