@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useMemo } from "react";
 import {
   ReactFlow,
   Background,
@@ -11,14 +11,13 @@ import {
 } from "@xyflow/react";
 import { Drawer, Text, Stack, Badge, Button } from "@mantine/core";
 import { open } from "@tauri-apps/plugin-dialog";
-import { invoke } from "@tauri-apps/api/core";
 import "@xyflow/react/dist/style.css";
 import { buildGraph } from "../lib/topology";
 import { layoutGraph } from "../lib/layout";
 import { IsdNode } from "./nodes/IsdNode";
 import { AsNode } from "./nodes/AsNode";
 import { RouterNode } from "./nodes/RouterNode";
-import type { Topology } from "../bindings";
+import { commands } from "../bindings";
 import type { TopologyNode, TopologyEdge } from "../lib/topology";
 
 const nodeTypes: NodeTypes = { isd: IsdNode, as: AsNode, router: RouterNode };
@@ -51,10 +50,12 @@ export function TopologyView() {
     setLoading(true);
     setError(null);
     try {
-      const topology = await invoke<Topology>("load_project", {
-        folder,
-        topo_file: topoFile,
-      });
+      const result = await commands.loadProject(folder, topoFile);
+      if (result.status === "error") {
+        setError(result.error);
+        return;
+      }
+      const topology = result.data;
       const { nodes: graphNodes, edges: graphEdges } = buildGraph(topology);
       const laidOut = layoutGraph(graphNodes, graphEdges);
       setNodes(laidOut);
@@ -75,10 +76,13 @@ export function TopologyView() {
     []
   );
 
-  const styledEdges = edges.map((edge) => ({
-    ...edge,
-    ...(edgeStyle[edge.data?.linkType ?? "Core"] ?? {}),
-  }));
+  const styledEdges = useMemo(
+    () => edges.map((edge) => ({
+      ...edge,
+      ...(edgeStyle[edge.data?.linkType ?? "Core"] ?? {}),
+    })),
+    [edges]
+  );
 
   return (
     <div style={{ width: "100%", height: "100%", position: "relative" }}>
