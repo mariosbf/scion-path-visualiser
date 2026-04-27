@@ -78,11 +78,11 @@ async fn create_topology_config(
         }
     });
 
+    let _ = tokio::join!(stdout_task, stderr_task);
     let status = child
         .wait()
         .await
         .map_err(|e| format!("Failed to wait for scion.sh: {e}"))?;
-    let _ = tokio::join!(stdout_task, stderr_task);
 
     if !status.success() {
         return Err(format!("scion.sh exited with status {status}"));
@@ -147,6 +147,7 @@ fn list_topology_files(folder: String) -> Result<Vec<String>, String> {
             }
         }
     }
+    files.sort();
     Ok(files)
 }
 
