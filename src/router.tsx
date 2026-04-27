@@ -26,6 +26,7 @@ const setupRoute = createRoute({
   beforeLoad: () => {
     if (session.getTopology()) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      // TODO(Task 5): remove `as any` once topologyRoute is registered in the route tree
       throw redirect({ to: "/app/topology" as any });
     }
   },
@@ -43,6 +44,7 @@ const appIndexRoute = createRoute({
   path: "/",
   beforeLoad: () => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    // TODO(Task 5): remove `as any` once topologyRoute is registered in the route tree
     throw redirect({ to: "/app/topology" as any });
   },
 });
