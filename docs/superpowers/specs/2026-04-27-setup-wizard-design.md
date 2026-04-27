@@ -57,7 +57,7 @@ Full-screen, no AppShell chrome. Mantine `Stepper` across the top; step content 
 - On mount:
   1. Frontend calls `run_scion(folder, topoFile)` Tauri command.
   2. Listens to `scion-output` events, appends each line to a scrolling monospace terminal box.
-  3. On `run_scion` resolving `Ok`: calls `commands.loadProject(folder, topoFile)`.
+  3. On `run_scion` resolving `Ok(copiedGenDir)`: calls `commands.loadProject(copiedGenDir)`.
   4. On `loadProject` success: persists both paths to store, navigates to `/app/topology` passing topology data via router navigation state.
   5. On any failure: shows error inline with a "Back" button that resets the wizard to Step 1 (folder selection).
 - No "Next" button — progress is fully automatic.
@@ -120,16 +120,26 @@ async fn run_scion(
     window: tauri::Window,
     folder: String,
     topo_file: String,
-) -> Result<(), String>
+) -> Result<String, String>  // returns path to copied gen dir on success
 ```
 
-- Spawns `scion.sh` as a subprocess via `tokio::process::Command`. **Exact CLI arguments TBD — confirm `scion.sh` invocation signature before implementing this command.**
+- Spawns `./scion.sh topology -c <topo_file>` via `tokio::process::Command`, with `current_dir` set to `folder`.
 - Reads stdout and stderr line by line, emitting one `scion-output` Tauri event per line.
-- Returns `Ok(())` on exit code 0, `Err(message)` on non-zero exit or spawn failure.
+- On non-zero exit or spawn failure: returns `Err(message)`.
+- On success (exit code 0): copies `<folder>/gen/` to a project-owned location in the Tauri app data dir, e.g. `<appDataDir>/projects/<sanitised-folder-name>/gen/`. Returns `Ok(copiedGenDir)`.
 
-### Existing command: `load_project`
+The frontend passes `copiedGenDir` to `load_project`.
 
-Unchanged. Called by the frontend after `run_scion` resolves successfully.
+### Modified command: `load_project`
+
+Signature changes — no longer takes `topo_file`, no longer calls `scion.sh`:
+
+```rust
+#[tauri::command]
+fn load_project(gen_dir: String) -> Result<Topology, String>
+```
+
+Reads `<gen_dir>/AS*/topology.json` via glob (same logic as today, path adjusted). This keeps `load_project` a pure parser with no side effects.
 
 ### Capabilities (`src-tauri/capabilities/default.json`)
 
