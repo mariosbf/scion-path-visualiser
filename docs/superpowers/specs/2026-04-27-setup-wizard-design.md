@@ -55,9 +55,9 @@ Full-screen, no AppShell chrome. Mantine `Stepper` across the top; step content 
 
 - No user input. Entered automatically when the user clicks "Start" on Step 3.
 - On mount:
-  1. Frontend calls `run_scion(folder, topoFile)` Tauri command.
-  2. Listens to `scion-output` events, appends each line to a scrolling monospace terminal box.
-  3. On `run_scion` resolving `Ok(copiedGenDir)`: calls `commands.loadProject(copiedGenDir)`.
+  1. Frontend calls `create_topology_config(folder, topoFile)` Tauri command.
+  2. Listens to `topology-config-output` events, appends each line to a scrolling monospace terminal box.
+  3. On `create_topology_config` resolving `Ok(copiedGenDir)`: calls `commands.loadProject(copiedGenDir)`.
   4. On `loadProject` success: persists both paths to store, navigates to `/app/topology` passing topology data via router navigation state.
   5. On any failure: shows error inline with a "Back" button that resets the wizard to Step 1 (folder selection).
 - No "Next" button — progress is fully automatic.
@@ -112,11 +112,13 @@ router.navigate({
 
 ## Rust Backend
 
-### New command: `run_scion`
+### New command: `create_topology_config`
+
+Generates the SCION topology configuration from a `.topo` file.
 
 ```rust
 #[tauri::command]
-async fn run_scion(
+async fn create_topology_config(
     window: tauri::Window,
     folder: String,
     topo_file: String,
@@ -124,7 +126,7 @@ async fn run_scion(
 ```
 
 - Spawns `./scion.sh topology -c <topo_file>` via `tokio::process::Command`, with `current_dir` set to `folder`.
-- Reads stdout and stderr line by line, emitting one `scion-output` Tauri event per line.
+- Reads stdout and stderr line by line, emitting one `topology-config-output` Tauri event per line.
 - On non-zero exit or spawn failure: returns `Err(message)`.
 - On success (exit code 0): copies `<folder>/gen/` to a project-owned location in the Tauri app data dir, e.g. `<appDataDir>/projects/<sanitised-folder-name>/gen/`. Returns `Ok(copiedGenDir)`.
 
@@ -158,5 +160,5 @@ Add `"store:default"` permission for `plugin-store`. Event emission (`window.emi
 | `src/routes/app/topology.tsx` | Create | TopologyView route (reads topology from router state) |
 | `src/App.tsx` | Remove or repurpose | Logic moves to `routes/app.tsx` |
 | `src/lib/store.ts` | Create | `getRecent` / `pushRecent` helpers wrapping plugin-store |
-| `src-tauri/src/lib.rs` | Modify | Add `run_scion` command, register in `generate_handler!` |
+| `src-tauri/src/lib.rs` | Modify | Add `create_topology_config` command, register in `generate_handler!` |
 | `src-tauri/capabilities/default.json` | Modify | Add `store:default` permission |
