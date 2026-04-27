@@ -36,7 +36,7 @@ export function SetupWizard() {
   return (
     <Center style={{ minHeight: "100vh" }} p="xl">
       <Box style={{ width: "100%", maxWidth: 640 }}>
-        <Stepper active={active} mb="xl">
+        <Stepper active={active} allowNextStepsSelect={false} mb="xl">
           <Stepper.Step label="Folder" description="Select SCION folder">
             <FolderStep
               selected={state.folder}
@@ -147,6 +147,50 @@ function FolderStep({
   );
 }
 
+function FileList({
+  files,
+  label,
+  selected,
+  onSelect,
+}: {
+  files: string[];
+  label: string;
+  selected: string | null;
+  onSelect: (f: string) => void;
+}) {
+  if (files.length === 0) return null;
+  return (
+    <>
+      <Text size="sm" fw={500}>
+        {label}
+      </Text>
+      <ScrollArea h={150}>
+        <Stack gap={4}>
+          {files.map((f) => (
+            <Paper
+              key={f}
+              p="xs"
+              withBorder
+              style={{
+                cursor: "pointer",
+                outline:
+                  selected === f
+                    ? "2px solid var(--mantine-color-blue-filled)"
+                    : undefined,
+              }}
+              onClick={() => onSelect(f)}
+            >
+              <Text size="sm" style={{ wordBreak: "break-all" }}>
+                {f}
+              </Text>
+            </Paper>
+          ))}
+        </Stack>
+      </ScrollArea>
+    </>
+  );
+}
+
 function TopologyStep({
   folder,
   selected,
@@ -180,38 +224,6 @@ function TopologyStep({
     if (file && typeof file === "string") onSelect(file);
   };
 
-  const FileList = ({ files, label }: { files: string[]; label: string }) =>
-    files.length === 0 ? null : (
-      <>
-        <Text size="sm" fw={500}>
-          {label}
-        </Text>
-        <ScrollArea h={150}>
-          <Stack gap={4}>
-            {files.map((f) => (
-              <Paper
-                key={f}
-                p="xs"
-                withBorder
-                style={{
-                  cursor: "pointer",
-                  outline:
-                    selected === f
-                      ? "2px solid var(--mantine-color-blue-filled)"
-                      : undefined,
-                }}
-                onClick={() => onSelect(f)}
-              >
-                <Text size="sm" style={{ wordBreak: "break-all" }}>
-                  {f}
-                </Text>
-              </Paper>
-            ))}
-          </Stack>
-        </ScrollArea>
-      </>
-    );
-
   return (
     <Stack gap="md" mt="md">
       <Button variant="default" onClick={browse}>
@@ -222,8 +234,8 @@ function TopologyStep({
           Selected: {selected}
         </Text>
       )}
-      <FileList files={projectFiles} label="In project" />
-      <FileList files={recentTopos} label="Recent" />
+      <FileList files={projectFiles} label="In project" selected={selected} onSelect={onSelect} />
+      <FileList files={recentTopos} label="Recent" selected={selected} onSelect={onSelect} />
       <Group justify="space-between">
         <Button variant="default" onClick={onBack}>
           Back
@@ -274,23 +286,26 @@ function LoadingStep({
   const viewportRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    let unlisten: (() => void) | undefined;
+    if (viewportRef.current) {
+      viewportRef.current.scrollTop = viewportRef.current.scrollHeight;
+    }
+  }, [lines]);
+
+  useEffect(() => {
     let cancelled = false;
+    let cleanupUnlisten: (() => void) | undefined;
 
     async function run() {
-      unlisten = await listen<string>("topology-config-output", (e) => {
+      const unlistenFn = await listen<string>("topology-config-output", (e) => {
         if (cancelled) return;
-        setLines((prev) => {
-          const next = [...prev, e.payload];
-          setTimeout(() => {
-            if (viewportRef.current) {
-              viewportRef.current.scrollTop =
-                viewportRef.current.scrollHeight;
-            }
-          }, 0);
-          return next;
-        });
+        setLines((prev) => [...prev, e.payload]);
       });
+
+      if (cancelled) {
+        unlistenFn();
+        return;
+      }
+      cleanupUnlisten = unlistenFn;
 
       const configResult = await commands.createTopologyConfig(folder, topoFile);
       if (cancelled) return;
@@ -316,7 +331,7 @@ function LoadingStep({
 
     return () => {
       cancelled = true;
-      unlisten?.();
+      cleanupUnlisten?.();
     };
   }, [folder, topoFile, navigate]);
 
