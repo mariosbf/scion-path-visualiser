@@ -26,8 +26,9 @@ export function AsNode({ data }: NodeProps<AsNodeType>) {
       <span
         style={{
           position: "absolute",
-          top: 6,
-          left: 10,
+          top: "50%",
+          left: "50%",
+          transform: "translate(-50%, -50%)",
           fontSize: 11,
           color: labelColor,
           userSelect: "none",
