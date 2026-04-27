@@ -7,6 +7,7 @@ import {
 } from "@tanstack/react-router";
 import { SetupWizard } from "./routes/setup";
 import { AppLayout } from "./routes/app";
+import { TopologyRoute } from "./routes/app/topology";
 import { session } from "./lib/session";
 
 const rootRoute = createRootRoute({ component: () => <Outlet /> });
@@ -22,12 +23,9 @@ const indexRoute = createRoute({
 const setupRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/setup",
-  // Redirect to app if a topology is already loaded in this session
   beforeLoad: () => {
     if (session.getTopology()) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      // TODO(Task 5): remove `as any` once topologyRoute is registered in the route tree
-      throw redirect({ to: "/app/topology" as any });
+      throw redirect({ to: "/app/topology" });
     }
   },
   component: SetupWizard,
@@ -43,16 +41,20 @@ const appIndexRoute = createRoute({
   getParentRoute: () => appRoute,
   path: "/",
   beforeLoad: () => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    // TODO(Task 5): remove `as any` once topologyRoute is registered in the route tree
-    throw redirect({ to: "/app/topology" as any });
+    throw redirect({ to: "/app/topology" });
   },
+});
+
+const topologyRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: "/topology",
+  component: TopologyRoute,
 });
 
 const routeTree = rootRoute.addChildren([
   indexRoute,
   setupRoute,
-  appRoute.addChildren([appIndexRoute]),
+  appRoute.addChildren([appIndexRoute, topologyRoute]),
 ]);
 
 export const router = createRouter({ routeTree });

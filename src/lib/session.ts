@@ -1,5 +1,10 @@
-// src/lib/session.ts — placeholder, replaced in Task 5
+import type { Topology } from "../bindings";
+
+let topology: Topology | null = null;
+
 export const session = {
-  getTopology: () => null as any,
-  setTopology: (_t: any) => {},
+  setTopology: (t: Topology) => {
+    topology = t;
+  },
+  getTopology: () => topology,
 };

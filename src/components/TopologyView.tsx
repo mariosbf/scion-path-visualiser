@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo } from "react";
+import React, { useState, useCallback, useMemo, useEffect } from "react";
 import {
   ReactFlow,
   Background,
@@ -9,15 +9,14 @@ import {
   type EdgeMouseHandler,
   type NodeTypes,
 } from "@xyflow/react";
-import { Drawer, Text, Stack, Badge, Button } from "@mantine/core";
-import { open } from "@tauri-apps/plugin-dialog";
+import { Drawer, Text, Stack, Badge } from "@mantine/core";
 import "@xyflow/react/dist/style.css";
 import { buildGraph } from "../lib/topology";
 import { layoutGraph } from "../lib/layout";
 import { IsdNode } from "./nodes/IsdNode";
 import { AsNode } from "./nodes/AsNode";
 import { RouterNode } from "./nodes/RouterNode";
-import { commands } from "../bindings";
+import type { Topology } from "../bindings";
 import type { TopologyNode, TopologyEdge } from "../lib/topology";
 
 const nodeTypes: NodeTypes = { isd: IsdNode, as: AsNode, router: RouterNode };
@@ -25,47 +24,28 @@ const nodeTypes: NodeTypes = { isd: IsdNode, as: AsNode, router: RouterNode };
 const edgeStyle = {
   Core: { style: { strokeWidth: 3, stroke: "#868e96" } },
   Child: { style: { strokeWidth: 1.5, stroke: "#868e96" } },
-  Peer: { style: { strokeWidth: 1.5, stroke: "#868e96", strokeDasharray: "5,5" } },
+  Peer: {
+    style: { strokeWidth: 1.5, stroke: "#868e96", strokeDasharray: "5,5" },
+  },
 } as const;
 
 type Selected = TopologyNode | TopologyEdge | null;
 
-export function TopologyView() {
+interface Props {
+  topology: Topology;
+}
+
+export function TopologyView({ topology }: Props) {
   const [nodes, setNodes, onNodesChange] = useNodesState<TopologyNode>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<TopologyEdge>([]);
   const [selected, setSelected] = useState<Selected>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
-  const handleOpen = useCallback(async () => {
-    const folder = await open({ directory: true, title: "Select SCION project folder" });
-    if (!folder || typeof folder !== "string") return;
-
-    const topoFile = await open({
-      title: "Select topology file",
-      filters: [{ name: "Topology", extensions: ["topo"] }],
-    });
-    if (!topoFile || typeof topoFile !== "string") return;
-
-    setLoading(true);
-    setError(null);
-    try {
-      const result = await commands.loadProject(folder, topoFile);
-      if (result.status === "error") {
-        setError(result.error);
-        return;
-      }
-      const topology = result.data;
-      const { nodes: graphNodes, edges: graphEdges } = buildGraph(topology);
-      const laidOut = layoutGraph(graphNodes, graphEdges);
-      setNodes(laidOut);
-      setEdges(graphEdges);
-    } catch (e) {
-      setError(String(e));
-    } finally {
-      setLoading(false);
-    }
-  }, [setNodes, setEdges]);
+  useEffect(() => {
+    const { nodes: graphNodes, edges: graphEdges } = buildGraph(topology);
+    const laidOut = layoutGraph(graphNodes, graphEdges);
+    setNodes(laidOut);
+    setEdges(graphEdges);
+  }, [topology, setNodes, setEdges]);
 
   const onNodeClick: NodeMouseHandler<TopologyNode> = useCallback(
     (_: React.MouseEvent, node: TopologyNode) => setSelected(node),
@@ -77,49 +57,16 @@ export function TopologyView() {
   );
 
   const styledEdges = useMemo(
-    () => edges.map((edge) => ({
-      ...edge,
-      ...(edgeStyle[edge.data?.linkType ?? "Core"] ?? {}),
-    })),
+    () =>
+      edges.map((edge) => ({
+        ...edge,
+        ...(edgeStyle[edge.data?.linkType ?? "Core"] ?? {}),
+      })),
     [edges]
   );
 
   return (
     <div style={{ width: "100%", height: "100%", position: "relative" }}>
-      {error && (
-        <div
-          style={{
-            position: "absolute",
-            top: 12,
-            left: "50%",
-            transform: "translateX(-50%)",
-            zIndex: 20,
-            maxWidth: 480,
-          }}
-        >
-          <Text c="red" size="sm" style={{ wordBreak: "break-word", textAlign: "center" }}>
-            {error}
-          </Text>
-        </div>
-      )}
-
-      {nodes.length === 0 && (
-        <div
-          style={{
-            position: "absolute",
-            inset: 0,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            zIndex: 10,
-          }}
-        >
-          <Button onClick={handleOpen} loading={loading} size="md">
-            Open Project
-          </Button>
-        </div>
-      )}
-
       <ReactFlow
         nodes={nodes}
         edges={styledEdges}
@@ -155,7 +102,15 @@ function DetailsPanel({ element }: { element: TopologyNode | TopologyEdge }) {
     return (
       <Stack gap="xs">
         <Text fw={600} size="sm">Link</Text>
-        <Badge color={edge.data?.linkType === "Core" ? "blue" : edge.data?.linkType === "Child" ? "green" : "orange"}>
+        <Badge
+          color={
+            edge.data?.linkType === "Core"
+              ? "blue"
+              : edge.data?.linkType === "Child"
+              ? "green"
+              : "orange"
+          }
+        >
           {edge.data?.linkType}
         </Badge>
         <Text size="sm" c="dimmed">Source</Text>
@@ -181,9 +136,7 @@ function DetailsPanel({ element }: { element: TopologyNode | TopologyEdge }) {
       <Stack gap="xs">
         <Text fw={600} size="sm">{node.data.asId}</Text>
         {node.data.core && <Badge color="orange">Core</Badge>}
-        {node.data.mtu !== null && (
-          <Text size="sm">MTU: {node.data.mtu}</Text>
-        )}
+        {node.data.mtu !== null && <Text size="sm">MTU: {node.data.mtu}</Text>}
       </Stack>
     );
   }
