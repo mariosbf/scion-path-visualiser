@@ -1,5 +1,6 @@
 pub mod topology;
 
+use tauri::{Emitter, Manager};
 use tauri_specta::{collect_commands, Builder};
 use topology::{build_topology, RawAsTopology, Topology};
 
@@ -25,7 +26,6 @@ fn load_project(folder: String, topo_file: String) -> Result<Topology, String> {
         ));
     }
 
-    // scion.sh topology generates files at gen/AS{hex}/topology.json
     let pattern = format!("{folder}/gen/AS*/topology.json");
     let raw_ases: Vec<RawAsTopology> = glob::glob(&pattern)
         .map_err(|e| format!("Invalid glob pattern: {e}"))?
@@ -41,10 +41,123 @@ fn load_project(folder: String, topo_file: String) -> Result<Topology, String> {
     Ok(build_topology(raw_ases))
 }
 
+#[tauri::command]
+#[specta::specta]
+async fn create_topology_config(
+    app: tauri::AppHandle,
+    folder: String,
+    topo_file: String,
+) -> Result<String, String> {
+    use std::process::Stdio;
+    use tokio::io::{AsyncBufReadExt, BufReader};
+
+    let mut child = tokio::process::Command::new("./scion.sh")
+        .args(["topology", "-c", &topo_file])
+        .current_dir(&folder)
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .map_err(|e| format!("Failed to spawn scion.sh: {e}"))?;
+
+    let stdout = child.stdout.take().unwrap();
+    let stderr = child.stderr.take().unwrap();
+
+    let app_out = app.clone();
+    let stdout_task = tokio::spawn(async move {
+        let mut lines = BufReader::new(stdout).lines();
+        while let Ok(Some(line)) = lines.next_line().await {
+            app_out.emit("topology-config-output", line).ok();
+        }
+    });
+
+    let app_err = app.clone();
+    let stderr_task = tokio::spawn(async move {
+        let mut lines = BufReader::new(stderr).lines();
+        while let Ok(Some(line)) = lines.next_line().await {
+            app_err.emit("topology-config-output", line).ok();
+        }
+    });
+
+    let status = child
+        .wait()
+        .await
+        .map_err(|e| format!("Failed to wait for scion.sh: {e}"))?;
+    let _ = tokio::join!(stdout_task, stderr_task);
+
+    if !status.success() {
+        return Err(format!("scion.sh exited with status {status}"));
+    }
+
+    let src_gen = std::path::Path::new(&folder).join("gen");
+    let app_data_dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| format!("Cannot resolve app data dir: {e}"))?;
+    let project_name = std::path::Path::new(&folder)
+        .file_name()
+        .and_then(|n| n.to_str())
+        .unwrap_or("project");
+    let dst_gen = app_data_dir
+        .join("projects")
+        .join(project_name)
+        .join("gen");
+
+    copy_dir_all(&src_gen, &dst_gen)?;
+
+    dst_gen
+        .to_str()
+        .map(|s: &str| s.to_string())
+        .ok_or_else(|| "Generated path contains invalid Unicode".to_string())
+}
+
+fn copy_dir_all(src: &std::path::Path, dst: &std::path::Path) -> Result<(), String> {
+    std::fs::create_dir_all(dst)
+        .map_err(|e| format!("Cannot create {}: {e}", dst.display()))?;
+    for entry in std::fs::read_dir(src)
+        .map_err(|e| format!("Cannot read {}: {e}", src.display()))?
+    {
+        let entry = entry.map_err(|e| e.to_string())?;
+        let ty = entry.file_type().map_err(|e| e.to_string())?;
+        if ty.is_dir() {
+            copy_dir_all(&entry.path(), &dst.join(entry.file_name()))?;
+        } else {
+            std::fs::copy(entry.path(), dst.join(entry.file_name()))
+                .map_err(|e| e.to_string())?;
+        }
+    }
+    Ok(())
+}
+
+#[tauri::command]
+#[specta::specta]
+fn list_topology_files(folder: String) -> Result<Vec<String>, String> {
+    let topo_dir = std::path::Path::new(&folder).join("topology");
+    if !topo_dir.exists() {
+        return Ok(Vec::new());
+    }
+    let mut files = Vec::new();
+    for entry in std::fs::read_dir(&topo_dir)
+        .map_err(|e| format!("Cannot read topology dir: {e}"))?
+    {
+        let entry = entry.map_err(|e| e.to_string())?;
+        let path = entry.path();
+        if path.extension().and_then(|e| e.to_str()) == Some("topo") {
+            if let Some(s) = path.to_str() {
+                files.push(s.to_string());
+            }
+        }
+    }
+    Ok(files)
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    let builder = Builder::<tauri::Wry>::new()
-        .commands(collect_commands![greet, load_project]);
+    let builder = Builder::<tauri::Wry>::new().commands(collect_commands![
+        greet,
+        load_project,
+        create_topology_config,
+        list_topology_files
+    ]);
 
     #[cfg(debug_assertions)]
     builder
@@ -69,7 +182,12 @@ mod tests {
     fn export_bindings() {
         use tauri_specta::{collect_commands, Builder};
         Builder::<tauri::Wry>::new()
-            .commands(collect_commands![super::greet, super::load_project])
+            .commands(collect_commands![
+                super::greet,
+                super::load_project,
+                super::create_topology_config,
+                super::list_topology_files
+            ])
             .export(
                 specta_typescript::Typescript::default().header("// @ts-nocheck"),
                 "../src/bindings.ts",

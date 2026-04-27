@@ -15,6 +15,22 @@ async loadProject(folder: string, topoFile: string) : Promise<Result<Topology, s
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
 }
+},
+async createTopologyConfig(folder: string, topoFile: string) : Promise<Result<string, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("create_topology_config", { folder, topoFile }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async listTopologyFiles(folder: string) : Promise<Result<string[], string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("list_topology_files", { folder }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
 }
 }
 
