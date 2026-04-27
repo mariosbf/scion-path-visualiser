@@ -3,11 +3,19 @@ import type { RouterNodeData } from "../../lib/topology";
 
 export type RouterNodeType = Node<RouterNodeData, "router">;
 
+const sideToPosition: Record<string, Position> = {
+  top: Position.Top,
+  bottom: Position.Bottom,
+  left: Position.Left,
+  right: Position.Right,
+};
+
 export function RouterNode({ data }: NodeProps<RouterNodeType>) {
+  const pos = sideToPosition[data.handleSide ?? "bottom"];
   return (
     <>
-      <Handle type="source" position={Position.Top} />
-      <Handle type="target" position={Position.Bottom} />
+      <Handle type="source" position={pos} id="s" />
+      <Handle type="target" position={pos} id="t" />
       <div
         style={{
           width: "100%",

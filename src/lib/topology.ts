@@ -20,6 +20,7 @@ export interface RouterNodeData extends Record<string, unknown> {
   interfaceId: number;
   underlayLocal: string;
   underlayRemote: string;
+  handleSide?: "top" | "bottom" | "left" | "right";
 }
 
 export interface EdgeData extends Record<string, unknown> {

@@ -5,15 +5,17 @@ import type { Node } from "@xyflow/react";
 const ROUTER_SIZE = 24;
 const AS_HEIGHT = 120;
 const AS_MIN_WIDTH = 160;
-const AS_ROUTER_SPACING = 40;
 const AS_PADDING_X = 20;
 const ISD_PADDING = 40;
 const ISD_GAP = 80;
 const RANK_SEP = 100;
 const NODE_SEP = 60;
+const ROUTER_MARGIN = 4;
+
+type Side = "top" | "bottom" | "left" | "right";
 
 function asWidth(routerCount: number): number {
-  return Math.max(AS_MIN_WIDTH, routerCount * AS_ROUTER_SPACING + AS_PADDING_X * 2);
+  return Math.max(AS_MIN_WIDTH, routerCount * (ROUTER_SIZE + 16) + AS_PADDING_X * 2);
 }
 
 export function layoutGraph(
@@ -37,11 +39,6 @@ export function layoutGraph(
     const list = routersByAs.get(rn.parentId) ?? [];
     list.push(rn);
     routersByAs.set(rn.parentId, list);
-  }
-
-  // Sort each group by node.id for stable, reproducible router positions
-  for (const [asId, routers] of routersByAs) {
-    routersByAs.set(asId, [...routers].sort((a, b) => a.id.localeCompare(b.id)));
   }
 
   // AS node dimensions keyed by AS node id
@@ -69,7 +66,11 @@ export function layoutGraph(
     const childIds = new Set(children.map((n) => n.id));
     for (const asNode of children) {
       const dim = asDims.get(asNode.id) ?? { width: AS_MIN_WIDTH, height: AS_HEIGHT };
-      g.setNode(asNode.id, { width: dim.width, height: dim.height });
+      g.setNode(asNode.id, {
+        width: dim.width,
+        height: dim.height,
+        ...(asNode.data.core ? { rank: "min" } : {}),
+      });
     }
 
     // Child edges drive the rank hierarchy
@@ -78,7 +79,6 @@ export function layoutGraph(
       const srcAs = routerToAs.get(edge.source);
       const tgtAs = routerToAs.get(edge.target);
       if (srcAs && tgtAs && childIds.has(srcAs) && childIds.has(tgtAs)) {
-        // Avoid duplicate edges in dagre
         if (!g.hasEdge(srcAs, tgtAs)) g.setEdge(srcAs, tgtAs);
       }
     }
@@ -122,6 +122,100 @@ export function layoutGraph(
     curX += (isdSizes.get(isdNode.id)?.width ?? 0) + ISD_GAP;
   }
 
+  // Build asId -> parentIsdId lookup for absolute position computation
+  const asToIsd = new Map<string, string>();
+  for (const asNode of asNodes) {
+    if (asNode.parentId) asToIsd.set(asNode.id, asNode.parentId);
+  }
+
+  function absoluteAsCenter(asId: string): { x: number; y: number } {
+    const isdId = asToIsd.get(asId);
+    const isdPos = isdId ? (isdPositions.get(isdId) ?? { x: 0, y: 0 }) : { x: 0, y: 0 };
+    const asPos = asPositions.get(asId) ?? { x: 0, y: 0 };
+    const dim = asDims.get(asId) ?? { width: AS_MIN_WIDTH, height: AS_HEIGHT };
+    return {
+      x: isdPos.x + asPos.x + dim.width / 2,
+      y: isdPos.y + asPos.y + dim.height / 2,
+    };
+  }
+
+  // Compute dominant side for each router based on direction to its peer ASes
+  const routerSide = new Map<string, Side>();
+
+  for (const rn of routerNodes) {
+    const myAsId = rn.parentId;
+    if (!myAsId) { routerSide.set(rn.id, "bottom"); continue; }
+
+    const myCenter = absoluteAsCenter(myAsId);
+    let dx = 0, dy = 0, count = 0;
+
+    for (const edge of edges) {
+      let peerId: string | null = null;
+      if (edge.source === rn.id) peerId = edge.target;
+      else if (edge.target === rn.id) peerId = edge.source;
+      if (!peerId) continue;
+
+      const peerAsId = routerToAs.get(peerId);
+      if (!peerAsId || peerAsId === myAsId) continue;
+
+      const peerCenter = absoluteAsCenter(peerAsId);
+      dx += peerCenter.x - myCenter.x;
+      dy += peerCenter.y - myCenter.y;
+      count++;
+    }
+
+    let side: Side;
+    if (count === 0) {
+      side = "bottom";
+    } else if (Math.abs(dx) > Math.abs(dy)) {
+      side = dx > 0 ? "right" : "left";
+    } else {
+      side = dy > 0 ? "bottom" : "top";
+    }
+
+    routerSide.set(rn.id, side);
+  }
+
+  // Group routers by (asId, side) and sort for stable ordering
+  const routersByAsAndSide = new Map<string, Map<Side, string[]>>();
+  for (const rn of routerNodes) {
+    if (!rn.parentId) continue;
+    if (!routersByAsAndSide.has(rn.parentId)) {
+      routersByAsAndSide.set(rn.parentId, new Map());
+    }
+    const sideMap = routersByAsAndSide.get(rn.parentId)!;
+    const side = routerSide.get(rn.id) ?? "bottom";
+    const existing = sideMap.get(side) ?? [];
+    existing.push(rn.id);
+    sideMap.set(side, existing);
+  }
+  // Sort routers within each side group by their peer AS position to avoid crossings:
+  // routers connecting left/up sit left/up; routers connecting right/down sit right/down.
+  for (const [asId, sideMap] of routersByAsAndSide.entries()) {
+    for (const [side, ids] of sideMap) {
+      const peerCenter = (routerId: string): { x: number; y: number } => {
+        let sx = 0, sy = 0, count = 0;
+        for (const edge of edges) {
+          const peerId = edge.source === routerId ? edge.target
+            : edge.target === routerId ? edge.source
+            : null;
+          if (!peerId) continue;
+          const peerAsId = routerToAs.get(peerId);
+          if (!peerAsId || peerAsId === asId) continue;
+          const c = absoluteAsCenter(peerAsId);
+          sx += c.x; sy += c.y; count++;
+        }
+        return count > 0 ? { x: sx / count, y: sy / count } : { x: 0, y: 0 };
+      };
+
+      sideMap.set(side, [...ids].sort((a, b) => {
+        const ca = peerCenter(a);
+        const cb = peerCenter(b);
+        return (side === "top" || side === "bottom") ? ca.x - cb.x : ca.y - cb.y;
+      }));
+    }
+  }
+
   // Apply positions to all nodes
   return nodes.map((node) => {
     if (node.type === "isd") {
@@ -138,17 +232,26 @@ export function layoutGraph(
       const asId = node.parentId;
       if (!asId) return node;
       const dim = asDims.get(asId) ?? { width: AS_MIN_WIDTH, height: AS_HEIGHT };
-      const siblings = routersByAs.get(asId) ?? [];
-      const idx = siblings.findIndex((r) => r.id === node.id);
-      if (idx === -1) return node;
-      const count = siblings.length;
-      const spacing = dim.width / (count + 1);
+      const side = routerSide.get(node.id) ?? "bottom";
+      const sideGroup = routersByAsAndSide.get(asId)?.get(side) ?? [node.id];
+      const idx = sideGroup.indexOf(node.id);
+      const count = sideGroup.length;
+
+      let x: number, y: number;
+      if (side === "top" || side === "bottom") {
+        const spacing = dim.width / (count + 1);
+        x = spacing * (idx + 1) - ROUTER_SIZE / 2;
+        y = side === "top" ? ROUTER_MARGIN : dim.height - ROUTER_SIZE - ROUTER_MARGIN;
+      } else {
+        const spacing = dim.height / (count + 1);
+        x = side === "left" ? ROUTER_MARGIN : dim.width - ROUTER_SIZE - ROUTER_MARGIN;
+        y = spacing * (idx + 1) - ROUTER_SIZE / 2;
+      }
+
       return {
         ...node,
-        position: {
-          x: spacing * (idx + 1) - ROUTER_SIZE / 2,
-          y: dim.height - ROUTER_SIZE - 4,
-        },
+        data: { ...node.data, handleSide: side },
+        position: { x, y },
         style: { width: ROUTER_SIZE, height: ROUTER_SIZE, borderRadius: "50%" },
       };
     }
