@@ -12,21 +12,8 @@ fn greet(name: &str) -> String {
 
 #[tauri::command]
 #[specta::specta]
-fn load_project(folder: String, topo_file: String) -> Result<Topology, String> {
-    let output = std::process::Command::new("./scion.sh")
-        .args(["topology", "-c", &topo_file])
-        .current_dir(&folder)
-        .output()
-        .map_err(|e| format!("Failed to run scion.sh: {e}"))?;
-
-    if !output.status.success() {
-        return Err(format!(
-            "scion.sh topology failed:\n{}",
-            String::from_utf8_lossy(&output.stderr)
-        ));
-    }
-
-    let pattern = format!("{folder}/gen/AS*/topology.json");
+fn load_project(gen_dir: String) -> Result<Topology, String> {
+    let pattern = format!("{gen_dir}/AS*/topology.json");
     let raw_ases: Vec<RawAsTopology> = glob::glob(&pattern)
         .map_err(|e| format!("Invalid glob pattern: {e}"))?
         .map(|entry| {

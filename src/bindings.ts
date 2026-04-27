@@ -8,9 +8,9 @@ export const commands = {
 async greet(name: string) : Promise<string> {
     return await TAURI_INVOKE("greet", { name });
 },
-async loadProject(folder: string, topoFile: string) : Promise<Result<Topology, string>> {
+async loadProject(genDir: string) : Promise<Result<Topology, string>> {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("load_project", { folder, topoFile }) };
+    return { status: "ok", data: await TAURI_INVOKE("load_project", { genDir }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
