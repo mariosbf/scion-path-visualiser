@@ -8,6 +8,7 @@ export function TitleBar() {
 
   return (
     <Group
+      data-tauri-drag-region
       h="100%"
       px={8}
       gap={0}
@@ -23,10 +24,7 @@ export function TitleBar() {
         SCION Visualiser
       </Text>
 
-      <div
-        data-tauri-drag-region
-        style={{ flex: 1, height: "100%", cursor: "default" }}
-      />
+      <div style={{ flex: 1, height: "100%" }} />
 
       <ActionIcon
         variant="subtle"
