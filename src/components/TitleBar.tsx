@@ -1,0 +1,62 @@
+import { Group, Text, ActionIcon } from "@mantine/core";
+import { IconMinus, IconSquare, IconX } from "@tabler/icons-react";
+import { getCurrentWindow } from "@tauri-apps/api/window";
+
+export function TitleBar() {
+  const win = getCurrentWindow();
+
+  return (
+    <Group
+      h="100%"
+      px={8}
+      gap={0}
+      style={{ userSelect: "none" }}
+    >
+      <Text
+        size="xs"
+        c="dimmed"
+        fw={500}
+        px={4}
+        style={{ letterSpacing: 0.3 }}
+      >
+        SCION Visualiser
+      </Text>
+
+      <div
+        data-tauri-drag-region
+        style={{ flex: 1, height: "100%", cursor: "default" }}
+      />
+
+      <ActionIcon
+        variant="subtle"
+        color="gray"
+        size="md"
+        onClick={() => win.minimize()}
+        aria-label="Minimise"
+      >
+        <IconMinus size={14} stroke={1.5} />
+      </ActionIcon>
+
+      <ActionIcon
+        variant="subtle"
+        color="gray"
+        size="md"
+        onClick={() => win.toggleMaximize()}
+        aria-label="Maximise"
+      >
+        <IconSquare size={14} stroke={1.5} />
+      </ActionIcon>
+
+      <ActionIcon
+        data-close-btn
+        variant="subtle"
+        color="gray"
+        size="md"
+        onClick={() => win.close()}
+        aria-label="Close"
+      >
+        <IconX size={14} stroke={1.5} />
+      </ActionIcon>
+    </Group>
+  );
+}
