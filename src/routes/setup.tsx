@@ -1,15 +1,17 @@
 import { useState, useEffect, useRef } from "react";
 import {
-  Stepper,
   Button,
   Group,
   Text,
   Stack,
   ScrollArea,
+  Image,
   Paper,
   Code,
   Box,
-  Center,
+  Card,
+  Flex,
+  Divider,
 } from "@mantine/core";
 import { open } from "@tauri-apps/plugin-dialog";
 import { listen } from "@tauri-apps/api/event";
@@ -17,10 +19,45 @@ import { useNavigate } from "@tanstack/react-router";
 import { commands } from "../bindings";
 import { getRecent, pushRecent } from "../lib/store";
 import { session } from "../lib/session";
+import logo from "../assets/logo.png";
 
 interface WizardState {
   folder: string | null;
   topoFile: string | null;
+}
+
+const STEPS = ["Folder", "Topology", "Loading"];
+const STEP_LABELS = ["Select Folder", "Select Topology", "Loading"];
+const STEP_DESCS = [
+  "Choose the root folder of your SCION project.",
+  "Choose the topology file to load.",
+  "Generating topology configuration…",
+];
+
+function BarStepper({ active }: { active: number }) {
+  return (
+    <Group gap={0} align="flex-start" grow mb="xl">
+      {STEPS.map((label, i) => (
+        <Box key={i} style={{ paddingRight: i < STEPS.length - 1 ? 8 : 0 }}>
+          <Box
+            bg={i <= active ? "blue" : "white"}
+            style={{
+              height: 3,
+              borderRadius: 2,
+              marginBottom: 8,
+            }}
+          />
+          <Text
+            size="sm"
+            fw={i === active ? 600 : 400}
+            c={i > active ? "dimmed" : undefined}
+          >
+            {label}
+          </Text>
+        </Box>
+      ))}
+    </Group>
+  );
 }
 
 export function SetupWizard() {
@@ -32,57 +69,100 @@ export function SetupWizard() {
 
   const nextStep = () => setActive((a) => a + 1);
   const prevStep = () => setActive((a) => Math.max(0, a - 1));
+  const reset = () => {
+    setState({ folder: null, topoFile: null });
+    setActive(0);
+  };
+
+  const canNext = [state.folder !== null, state.topoFile !== null, true, false];
+
+  const isLoading = active === 2;
 
   return (
-    <Center style={{ minHeight: "100vh" }} p="xl">
-      <Box style={{ width: "100%", maxWidth: 640 }}>
-        <Stepper active={active} allowNextStepsSelect={false} mb="xl">
-          <Stepper.Step label="Folder" description="Select SCION folder">
+    <Box
+      style={{
+        minHeight: "100vh",
+        display: "flex",
+        flexDirection: "column",
+      }}
+    >
+      {/* Top header */}
+      <Box
+        style={{
+          padding: "14px 24px",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+        }}
+      >
+        <Group gap="sm">
+          <Image src={logo} alt="SCION" style={{  height: 32 }} />
+        </Group>
+      </Box>
+
+      {/* Content */}
+      <Flex flex={1} w="100%" justify="center" align="center">
+        <Card w="70%" maw="1200px">
+          <BarStepper active={active} />
+
+          <Text size="xl" fw={600} mb={4}>
+            {STEP_LABELS[active]}
+          </Text>
+          <Text size="sm" c="dimmed" mb="xl">
+            {STEP_DESCS[active]}
+          </Text>
+
+          {active === 0 && (
             <FolderStep
               selected={state.folder}
               onSelect={(folder) => setState((s) => ({ ...s, folder }))}
-              onNext={nextStep}
             />
-          </Stepper.Step>
-
-          <Stepper.Step label="Topology" description="Select topology file">
+          )}
+          {active === 1 && (
             <TopologyStep
               folder={state.folder ?? ""}
               selected={state.topoFile}
               onSelect={(topoFile) => setState((s) => ({ ...s, topoFile }))}
-              onNext={nextStep}
-              onBack={prevStep}
             />
-          </Stepper.Step>
-
-          <Stepper.Step label="Configuration">
-            <ConfigStep onNext={nextStep} onBack={prevStep} />
-          </Stepper.Step>
-
-          <Stepper.Step label="Loading">
+          )}
+          {active === 2 && (
             <LoadingStep
               folder={state.folder ?? ""}
               topoFile={state.topoFile ?? ""}
-              onBack={() => {
-                setState({ folder: null, topoFile: null });
-                setActive(0);
-              }}
+              onStartOver={reset}
             />
-          </Stepper.Step>
-        </Stepper>
-      </Box>
-    </Center>
+          )}
+        </Card>
+      </Flex>
+
+      <Divider />
+
+      {/* Bottom action bar */}
+      {!isLoading && (
+        <Group p="md" justify="space-between" bg="dark">
+          <Button
+            variant="subtle"
+            disabled={active === 0}
+            onClick={prevStep}
+            leftSection={<span>←</span>}
+          >
+            Back
+          </Button>
+          <Button disabled={!canNext[active]} onClick={nextStep}>
+            {active === 2 ? "Start" : "Next"}
+          </Button>
+        </Group>
+      )}
+    </Box>
   );
 }
 
 function FolderStep({
   selected,
   onSelect,
-  onNext,
 }: {
   selected: string | null;
   onSelect: (folder: string) => void;
-  onNext: () => void;
 }) {
   const [recentFolders, setRecentFolders] = useState<string[]>([]);
 
@@ -99,7 +179,7 @@ function FolderStep({
   };
 
   return (
-    <Stack gap="md" mt="md">
+    <Stack gap="md">
       <Button variant="default" onClick={browse}>
         Browse…
       </Button>
@@ -138,11 +218,6 @@ function FolderStep({
           </ScrollArea>
         </>
       )}
-      <Group justify="flex-end">
-        <Button disabled={!selected} onClick={onNext}>
-          Next
-        </Button>
-      </Group>
     </Stack>
   );
 }
@@ -195,14 +270,10 @@ function TopologyStep({
   folder,
   selected,
   onSelect,
-  onNext,
-  onBack,
 }: {
   folder: string;
   selected: string | null;
   onSelect: (topoFile: string) => void;
-  onNext: () => void;
-  onBack: () => void;
 }) {
   const [projectFiles, setProjectFiles] = useState<string[]>([]);
   const [recentTopos, setRecentTopos] = useState<string[]>([]);
@@ -225,7 +296,7 @@ function TopologyStep({
   };
 
   return (
-    <Stack gap="md" mt="md">
+    <Stack gap="md">
       <Button variant="default" onClick={browse}>
         Browse…
       </Button>
@@ -234,39 +305,18 @@ function TopologyStep({
           Selected: {selected}
         </Text>
       )}
-      <FileList files={projectFiles} label="In project" selected={selected} onSelect={onSelect} />
-      <FileList files={recentTopos} label="Recent" selected={selected} onSelect={onSelect} />
-      <Group justify="space-between">
-        <Button variant="default" onClick={onBack}>
-          Back
-        </Button>
-        <Button disabled={!selected} onClick={onNext}>
-          Next
-        </Button>
-      </Group>
-    </Stack>
-  );
-}
-
-function ConfigStep({
-  onNext,
-  onBack,
-}: {
-  onNext: () => void;
-  onBack: () => void;
-}) {
-  return (
-    <Stack gap="md" mt="md">
-      <Text c="dimmed" size="sm">
-        No configuration options are available yet. Click Start to generate the
-        topology configuration.
-      </Text>
-      <Group justify="space-between">
-        <Button variant="default" onClick={onBack}>
-          Back
-        </Button>
-        <Button onClick={onNext}>Start</Button>
-      </Group>
+      <FileList
+        files={projectFiles}
+        label="In project"
+        selected={selected}
+        onSelect={onSelect}
+      />
+      <FileList
+        files={recentTopos}
+        label="Recent"
+        selected={selected}
+        onSelect={onSelect}
+      />
     </Stack>
   );
 }
@@ -274,11 +324,11 @@ function ConfigStep({
 function LoadingStep({
   folder,
   topoFile,
-  onBack,
+  onStartOver,
 }: {
   folder: string;
   topoFile: string;
-  onBack: () => void;
+  onStartOver: () => void;
 }) {
   const navigate = useNavigate();
   const [lines, setLines] = useState<string[]>([]);
@@ -307,7 +357,10 @@ function LoadingStep({
       }
       cleanupUnlisten = unlistenFn;
 
-      const configResult = await commands.createTopologyConfig(folder, topoFile);
+      const configResult = await commands.createTopologyConfig(
+        folder,
+        topoFile,
+      );
       if (cancelled) return;
       if (configResult.status === "error") {
         setError(configResult.error);
@@ -337,11 +390,11 @@ function LoadingStep({
 
   if (error) {
     return (
-      <Stack gap="md" mt="md">
+      <Stack gap="md">
         <Text c="red" size="sm" style={{ wordBreak: "break-word" }}>
           {error}
         </Text>
-        <Button variant="default" onClick={onBack}>
+        <Button variant="default" onClick={onStartOver}>
           Start Over
         </Button>
       </Stack>
@@ -349,20 +402,18 @@ function LoadingStep({
   }
 
   return (
-    <Stack gap="md" mt="md">
-      <ScrollArea h={300} viewportRef={viewportRef}>
-        <Code
-          block
-          style={{
-            fontFamily: "monospace",
-            whiteSpace: "pre-wrap",
-            wordBreak: "break-all",
-            minHeight: 300,
-          }}
-        >
-          {lines.length > 0 ? lines.join("\n") : "Running…"}
-        </Code>
-      </ScrollArea>
-    </Stack>
+    <ScrollArea h={300} viewportRef={viewportRef}>
+      <Code
+        block
+        style={{
+          fontFamily: "monospace",
+          whiteSpace: "pre-wrap",
+          wordBreak: "break-all",
+          minHeight: 300,
+        }}
+      >
+        {lines.length > 0 ? lines.join("\n") : "Running…"}
+      </Code>
+    </ScrollArea>
   );
 }
