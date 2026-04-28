@@ -84,11 +84,9 @@ async fn create_topology_config(
         .file_name()
         .and_then(|n| n.to_str())
         .unwrap_or("project");
-    let dst_gen = app_data_dir
-        .join("projects")
-        .join(project_name)
-        .join("gen");
+    let dst_gen = app_data_dir.join("projects").join(project_name).join("gen");
 
+    clear_directory(&dst_gen)?;
     copy_dir_all(&src_gen, &dst_gen)?;
 
     dst_gen
@@ -97,19 +95,25 @@ async fn create_topology_config(
         .ok_or_else(|| "Generated path contains invalid Unicode".to_string())
 }
 
+fn clear_directory(path: &std::path::Path) -> Result<(), String> {
+    if path.exists() {
+        std::fs::remove_dir_all(path)
+            .map_err(|e| format!("Cannot clear {}: {e}", path.display()))?;
+    }
+    Ok(())
+}
+
 fn copy_dir_all(src: &std::path::Path, dst: &std::path::Path) -> Result<(), String> {
-    std::fs::create_dir_all(dst)
-        .map_err(|e| format!("Cannot create {}: {e}", dst.display()))?;
-    for entry in std::fs::read_dir(src)
-        .map_err(|e| format!("Cannot read {}: {e}", src.display()))?
+    std::fs::create_dir_all(dst).map_err(|e| format!("Cannot create {}: {e}", dst.display()))?;
+    for entry in
+        std::fs::read_dir(src).map_err(|e| format!("Cannot read {}: {e}", src.display()))?
     {
         let entry = entry.map_err(|e| e.to_string())?;
         let ty = entry.file_type().map_err(|e| e.to_string())?;
         if ty.is_dir() {
             copy_dir_all(&entry.path(), &dst.join(entry.file_name()))?;
         } else {
-            std::fs::copy(entry.path(), dst.join(entry.file_name()))
-                .map_err(|e| e.to_string())?;
+            std::fs::copy(entry.path(), dst.join(entry.file_name())).map_err(|e| e.to_string())?;
         }
     }
     Ok(())
@@ -123,8 +127,8 @@ fn list_topology_files(folder: String) -> Result<Vec<String>, String> {
         return Ok(Vec::new());
     }
     let mut files = Vec::new();
-    for entry in std::fs::read_dir(&topo_dir)
-        .map_err(|e| format!("Cannot read topology dir: {e}"))?
+    for entry in
+        std::fs::read_dir(&topo_dir).map_err(|e| format!("Cannot read topology dir: {e}"))?
     {
         let entry = entry.map_err(|e| e.to_string())?;
         let path = entry.path();
