@@ -28,15 +28,49 @@ fn load_project(gen_dir: String) -> Result<Topology, String> {
     Ok(build_topology(raw_ases))
 }
 
+async fn stream_output(
+    app: &tauri::AppHandle,
+    child: &mut tokio::process::Child,
+    event: &str,
+) -> Result<(), String> {
+    use tokio::io::{AsyncBufReadExt, BufReader};
+
+    let stdout = child.stdout.take().unwrap();
+    let stderr = child.stderr.take().unwrap();
+
+    let app_out = app.clone();
+    let event_out = event.to_owned();
+    let stdout_task = tokio::spawn(async move {
+        let mut lines = BufReader::new(stdout).lines();
+        while let Ok(Some(line)) = lines.next_line().await {
+            app_out.emit(&event_out, line).ok();
+        }
+    });
+
+    let app_err = app.clone();
+    let event_err = event.to_owned();
+    let stderr_task = tokio::spawn(async move {
+        let mut lines = BufReader::new(stderr).lines();
+        while let Ok(Some(line)) = lines.next_line().await {
+            app_err.emit(&event_err, line).ok();
+        }
+    });
+
+    let _ = tokio::join!(stdout_task, stderr_task);
+    Ok(())
+}
+
 #[tauri::command]
 #[specta::specta]
-async fn create_topology_config(
+async fn setup_scion_network(
     app: tauri::AppHandle,
     folder: String,
     topo_file: String,
 ) -> Result<String, String> {
     use std::process::Stdio;
-    use tokio::io::{AsyncBufReadExt, BufReader};
+
+    app.emit("scion-setup-phase", "Generating topology configuration…")
+        .ok();
 
     let mut child = tokio::process::Command::new("./scion.sh")
         .args(["topology", "-c", &topo_file])
@@ -46,33 +80,37 @@ async fn create_topology_config(
         .spawn()
         .map_err(|e| format!("Failed to spawn scion.sh: {e}"))?;
 
-    let stdout = child.stdout.take().unwrap();
-    let stderr = child.stderr.take().unwrap();
+    stream_output(&app, &mut child, "scion-setup-output").await?;
 
-    let app_out = app.clone();
-    let stdout_task = tokio::spawn(async move {
-        let mut lines = BufReader::new(stdout).lines();
-        while let Ok(Some(line)) = lines.next_line().await {
-            app_out.emit("topology-config-output", line).ok();
-        }
-    });
-
-    let app_err = app.clone();
-    let stderr_task = tokio::spawn(async move {
-        let mut lines = BufReader::new(stderr).lines();
-        while let Ok(Some(line)) = lines.next_line().await {
-            app_err.emit("topology-config-output", line).ok();
-        }
-    });
-
-    let _ = tokio::join!(stdout_task, stderr_task);
     let status = child
         .wait()
         .await
-        .map_err(|e| format!("Failed to wait for scion.sh: {e}"))?;
+        .map_err(|e| format!("Failed to wait for scion.sh topology: {e}"))?;
 
     if !status.success() {
-        return Err(format!("scion.sh exited with status {status}"));
+        return Err(format!("scion.sh topology exited with status {status}"));
+    }
+
+    app.emit("scion-setup-phase", "Starting SCION topology…")
+        .ok();
+
+    let mut child = tokio::process::Command::new("./scion.sh")
+        .args(["start"])
+        .current_dir(&folder)
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .map_err(|e| format!("Failed to spawn scion.sh: {e}"))?;
+
+    stream_output(&app, &mut child, "scion-setup-output").await?;
+
+    let status = child
+        .wait()
+        .await
+        .map_err(|e| format!("Failed to wait for scion.sh start: {e}"))?;
+
+    if !status.success() {
+        return Err(format!("scion.sh start exited with status {status}"));
     }
 
     let src_gen = std::path::Path::new(&folder).join("gen");
@@ -147,7 +185,7 @@ pub fn run() {
     let builder = Builder::<tauri::Wry>::new().commands(collect_commands![
         greet,
         load_project,
-        create_topology_config,
+        setup_scion_network,
         list_topology_files
     ]);
 
@@ -190,7 +228,7 @@ mod tests {
             .commands(collect_commands![
                 super::greet,
                 super::load_project,
-                super::create_topology_config,
+                super::setup_scion_network,
                 super::list_topology_files
             ])
             .export(

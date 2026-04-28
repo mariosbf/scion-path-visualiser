@@ -16,9 +16,9 @@ async loadProject(genDir: string) : Promise<Result<Topology, string>> {
     else return { status: "error", error: e  as any };
 }
 },
-async createTopologyConfig(folder: string, topoFile: string) : Promise<Result<string, string>> {
+async setupScionNetwork(folder: string, topoFile: string) : Promise<Result<string, string>> {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("create_topology_config", { folder, topoFile }) };
+    return { status: "ok", data: await TAURI_INVOKE("setup_scion_network", { folder, topoFile }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
