@@ -1,0 +1,20 @@
+.radioCard {
+    padding: var(--mantine-spacing-sm);
+    position: relative;
+    padding: var(--mantine-spacing-md);
+    transition: border-color 150ms ease;
+
+    &[data-checked] {
+        border-color: var(--mantine-primary-color-filled);
+    }
+
+    @mixin hover {
+        @mixin light {
+            background-color: white;
+        }
+
+        @mixin dark {
+            background-color: var(--mantine-color-dark-5);
+        }
+    }
+}

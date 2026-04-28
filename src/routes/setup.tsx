@@ -12,6 +12,9 @@ import {
   Card,
   Flex,
   Divider,
+  Radio,
+  RadioIndicator,
+  Title,
 } from "@mantine/core";
 import { open } from "@tauri-apps/plugin-dialog";
 import { listen } from "@tauri-apps/api/event";
@@ -20,14 +23,21 @@ import { commands } from "../bindings";
 import { getRecent, pushRecent } from "../lib/store";
 import { session } from "../lib/session";
 import logo from "../assets/logo.png";
+import classes from "./Setup.module.css";
+import { debug } from "@tauri-apps/plugin-log";
+import { IconArrowLeft } from "@tabler/icons-react";
 
 interface WizardState {
   folder: string | null;
   topoFile: string | null;
 }
 
-const STEPS = ["Folder", "Topology", "Loading"];
-const STEP_LABELS = ["Select Folder", "Select Topology", "Loading"];
+const STEPS = ["Implementation", "Topology", "Loading"];
+const STEP_LABELS = [
+  "Select SCION Implementation",
+  "Select Topology",
+  "Loading",
+];
 const STEP_DESCS = [
   "Choose the root folder of your SCION project.",
   "Choose the topology file to load.",
@@ -36,7 +46,7 @@ const STEP_DESCS = [
 
 function BarStepper({ active }: { active: number }) {
   return (
-    <Group gap={0} align="flex-start" grow mb="xl">
+    <Group gap={0} align="flex-start" grow>
       {STEPS.map((label, i) => (
         <Box key={i} style={{ paddingRight: i < STEPS.length - 1 ? 8 : 0 }}>
           <Box
@@ -79,81 +89,101 @@ export function SetupWizard() {
   const isLoading = active === 2;
 
   return (
-    <Box
-      style={{
-        minHeight: "100vh",
-        display: "flex",
-        flexDirection: "column",
-      }}
-    >
+    <Stack mih="100vh">
       {/* Top header */}
-      <Box
-        style={{
-          padding: "14px 24px",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-        }}
-      >
+      <Box p="md" display="flex">
         <Group gap="sm">
-          <Image src={logo} alt="SCION" style={{  height: 32 }} />
+          <Image src={logo} alt="SCION" style={{ height: 32 }} />
         </Group>
       </Box>
 
       {/* Content */}
       <Flex flex={1} w="100%" justify="center" align="center">
-        <Card w="70%" maw="1200px">
-          <BarStepper active={active} />
+        <Card w="70%" maw="1200px" h="70vh">
+          <Stack gap="xl">
+            <BarStepper active={active} />
 
-          <Text size="xl" fw={600} mb={4}>
-            {STEP_LABELS[active]}
-          </Text>
-          <Text size="sm" c="dimmed" mb="xl">
-            {STEP_DESCS[active]}
-          </Text>
+            <Stack gap="xs">
+              <Title order={1} size="xl" fw={600}>
+                {STEP_LABELS[active]}
+              </Title>
+              <Text size="sm" c="dimmed">
+                {STEP_DESCS[active]}
+              </Text>
+            </Stack>
 
-          {active === 0 && (
-            <FolderStep
-              selected={state.folder}
-              onSelect={(folder) => setState((s) => ({ ...s, folder }))}
-            />
-          )}
-          {active === 1 && (
-            <TopologyStep
-              folder={state.folder ?? ""}
-              selected={state.topoFile}
-              onSelect={(topoFile) => setState((s) => ({ ...s, topoFile }))}
-            />
-          )}
-          {active === 2 && (
-            <LoadingStep
-              folder={state.folder ?? ""}
-              topoFile={state.topoFile ?? ""}
-              onStartOver={reset}
-            />
-          )}
+            <Box flex={1}>
+              {active === 0 && (
+                <FolderStep
+                  selected={state.folder}
+                  onSelect={(folder) => setState((s) => ({ ...s, folder }))}
+                />
+              )}
+              {active === 1 && (
+                <TopologyStep
+                  folder={state.folder ?? ""}
+                  selected={state.topoFile}
+                  onSelect={(topoFile) => setState((s) => ({ ...s, topoFile }))}
+                />
+              )}
+              {active === 2 && (
+                <LoadingStep
+                  folder={state.folder ?? ""}
+                  topoFile={state.topoFile ?? ""}
+                  onStartOver={reset}
+                />
+              )}
+            </Box>
+          </Stack>
         </Card>
       </Flex>
 
-      <Divider />
-
       {/* Bottom action bar */}
       {!isLoading && (
-        <Group p="md" justify="space-between" bg="dark">
-          <Button
-            variant="subtle"
-            disabled={active === 0}
-            onClick={prevStep}
-            leftSection={<span>←</span>}
-          >
-            Back
-          </Button>
-          <Button disabled={!canNext[active]} onClick={nextStep}>
-            {active === 2 ? "Start" : "Next"}
-          </Button>
-        </Group>
+        <Stack gap={0}>
+          <Divider />
+
+          <Group p="md" justify="space-between" bg="dark">
+            <Button
+              variant="subtle"
+              disabled={active === 0}
+              onClick={prevStep}
+              leftSection={<IconArrowLeft size={14} />}
+            >
+              Back
+            </Button>
+            <Button disabled={!canNext[active]} onClick={nextStep}>
+              {active === 2 ? "Start" : "Next"}
+            </Button>
+          </Group>
+        </Stack>
       )}
-    </Box>
+    </Stack>
+  );
+}
+
+function PathRadioGroup({
+  paths,
+  selected,
+  onSelect,
+}: {
+  paths: string[];
+  selected: string | null;
+  onSelect: (value: string) => void;
+}) {
+  return (
+    <Radio.Group value={selected} onChange={onSelect}>
+      <Stack gap="xs">
+        {paths.map((p) => (
+          <Radio.Card className={classes.radioCard} value={p} key={p} p="xs">
+            <Group>
+              <RadioIndicator />
+              <Code bg="transparent">{p}</Code>
+            </Group>
+          </Radio.Card>
+        ))}
+      </Stack>
+    </Radio.Group>
   );
 }
 
@@ -179,7 +209,7 @@ function FolderStep({
   };
 
   return (
-    <Stack gap="md">
+    <Stack gap="sm" h="100%">
       <Button variant="default" onClick={browse}>
         Browse…
       </Button>
@@ -194,75 +224,15 @@ function FolderStep({
             Recent
           </Text>
           <ScrollArea h={200}>
-            <Stack gap={4}>
-              {recentFolders.map((f) => (
-                <Paper
-                  key={f}
-                  p="xs"
-                  withBorder
-                  style={{
-                    cursor: "pointer",
-                    outline:
-                      selected === f
-                        ? "2px solid var(--mantine-color-blue-filled)"
-                        : undefined,
-                  }}
-                  onClick={() => onSelect(f)}
-                >
-                  <Text size="sm" style={{ wordBreak: "break-all" }}>
-                    {f}
-                  </Text>
-                </Paper>
-              ))}
-            </Stack>
+            <PathRadioGroup
+              paths={recentFolders}
+              selected={selected}
+              onSelect={onSelect}
+            />
           </ScrollArea>
         </>
       )}
     </Stack>
-  );
-}
-
-function FileList({
-  files,
-  label,
-  selected,
-  onSelect,
-}: {
-  files: string[];
-  label: string;
-  selected: string | null;
-  onSelect: (f: string) => void;
-}) {
-  if (files.length === 0) return null;
-  return (
-    <>
-      <Text size="sm" fw={500}>
-        {label}
-      </Text>
-      <ScrollArea h={150}>
-        <Stack gap={4}>
-          {files.map((f) => (
-            <Paper
-              key={f}
-              p="xs"
-              withBorder
-              style={{
-                cursor: "pointer",
-                outline:
-                  selected === f
-                    ? "2px solid var(--mantine-color-blue-filled)"
-                    : undefined,
-              }}
-              onClick={() => onSelect(f)}
-            >
-              <Text size="sm" style={{ wordBreak: "break-all" }}>
-                {f}
-              </Text>
-            </Paper>
-          ))}
-        </Stack>
-      </ScrollArea>
-    </>
   );
 }
 
@@ -305,18 +275,26 @@ function TopologyStep({
           Selected: {selected}
         </Text>
       )}
-      <FileList
-        files={projectFiles}
-        label="In project"
-        selected={selected}
-        onSelect={onSelect}
-      />
-      <FileList
-        files={recentTopos}
-        label="Recent"
-        selected={selected}
-        onSelect={onSelect}
-      />
+      <Stack>
+        <Text>In project:</Text>
+        <ScrollArea h={150}>
+          <PathRadioGroup
+            paths={projectFiles}
+            selected={selected}
+            onSelect={onSelect}
+          />
+        </ScrollArea>
+      </Stack>
+      <Stack mt="md">
+        <Text>Recent topologies:</Text>
+        <ScrollArea h={150}>
+          <PathRadioGroup
+            paths={recentTopos}
+            selected={selected}
+            onSelect={onSelect}
+          />
+        </ScrollArea>
+      </Stack>
     </Stack>
   );
 }
