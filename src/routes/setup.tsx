@@ -15,6 +15,7 @@ import {
   Radio,
   RadioIndicator,
   Title,
+  Loader,
 } from "@mantine/core";
 import { open } from "@tauri-apps/plugin-dialog";
 import { listen } from "@tauri-apps/api/event";
@@ -380,18 +381,41 @@ function LoadingStep({
   }
 
   return (
-    <ScrollArea h={300} viewportRef={viewportRef}>
-      <Code
-        block
-        style={{
-          fontFamily: "monospace",
-          whiteSpace: "pre-wrap",
-          wordBreak: "break-all",
-          minHeight: 300,
-        }}
-      >
-        {lines.length > 0 ? lines.join("\n") : "Running…"}
-      </Code>
+    <ScrollArea h={500} viewportRef={viewportRef}>
+      <Paper radius="md" withBorder style={{ overflow: "hidden" }}>
+        <Group justify="space-between" p="sm" bg="gray.9">
+          <Text size="sm">Generating topology configuration…</Text>
+          <Loader size="xs" />
+        </Group>
+        <Divider />
+        <Group gap={0} align="stretch">
+          <Box
+            py="sm"
+            px="sm"
+            bg="gray.9"
+            style={{
+              borderRight: "1px solid var(--mantine-color-gray-7)",
+              userSelect: "none",
+            }}
+          >
+            {lines.map((_, i) => (
+              <Text
+                key={i}
+                size="xs"
+                ff="monospace"
+                c="dimmed"
+                ta="right"
+                lh={1.6}
+              >
+                {i + 1}
+              </Text>
+            ))}
+          </Box>
+          <Code block p="md" bg="gray.9" flex={1}>
+            {lines.length > 0 ? lines.join("\n") : "Running…"}
+          </Code>
+        </Group>
+      </Paper>
     </ScrollArea>
   );
 }
