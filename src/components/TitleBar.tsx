@@ -2,8 +2,9 @@ import { Group, Text, ActionIcon } from "@mantine/core";
 import { IconMinus, IconSquare, IconX } from "@tabler/icons-react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 
+const win = getCurrentWindow();
+
 export function TitleBar() {
-  const win = getCurrentWindow();
 
   return (
     <Group

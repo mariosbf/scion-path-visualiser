@@ -1,6 +1,6 @@
 /* App.css — Mantine handles layout; add app-specific overrides here */
 
 [data-close-btn]:hover {
-  background: var(--mantine-color-red-9) !important;
-  color: white !important;
+  background: var(--mantine-color-red-9);
+  color: white;
 }
