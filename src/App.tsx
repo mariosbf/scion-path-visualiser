@@ -18,6 +18,7 @@ import {
 } from "@tabler/icons-react";
 import { NavHeader } from "./components/NavHeader";
 import { NavItem } from "./components/NavItem";
+import { TitleBar } from "./components/TitleBar";
 
 type ColorScheme = "light" | "dark";
 
@@ -33,9 +34,14 @@ function App() {
   return (
     <MantineProvider forceColorScheme={colorScheme}>
       <AppShell
+        header={{ height: 32 }}
         navbar={{ width: opened ? 220 : 60, breakpoint: "sm" }}
         padding={0}
       >
+        <AppShell.Header style={{ borderBottom: "1px solid var(--mantine-color-default-border)" }}>
+          <TitleBar />
+        </AppShell.Header>
+
         <AppShell.Navbar>
           <AppShell.Section>
             <NavHeader
