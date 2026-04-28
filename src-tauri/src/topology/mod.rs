@@ -1,6 +1,6 @@
-use std::collections::HashMap;
 use scion_proto::address::IsdAsn;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 
 // ── IsdAsnDef ─────────────────────────────────────────────────────────────────
 
@@ -101,10 +101,8 @@ pub fn build_topology(raw_ases: Vec<RawAsTopology>) -> Topology {
         for (router_name, router) in &raw_as.border_routers {
             for (if_id_str, iface) in &router.interfaces {
                 if let Ok(if_id) = if_id_str.parse::<u32>() {
-                    iface_index.insert(
-                        (raw_as.isd_as, if_id),
-                        (router_name.clone(), iface.clone()),
-                    );
+                    iface_index
+                        .insert((raw_as.isd_as, if_id), (router_name.clone(), iface.clone()));
                 }
             }
         }
@@ -131,20 +129,26 @@ pub fn build_topology(raw_ases: Vec<RawAsTopology>) -> Topology {
                 // Find the remote endpoint
                 let remote_endpoint = if let Some(remote_if_id) = iface.remote_interface_id {
                     // Peer link: remote_interface_id is provided directly
-                    iface_index
-                        .get(&(remote_as, remote_if_id))
-                        .map(|(rn, ri)| {
-                            (rn.clone(), remote_if_id,
-                             ri.underlay.local.clone(), ri.underlay.remote.clone())
-                        })
+                    iface_index.get(&(remote_as, remote_if_id)).map(|(rn, ri)| {
+                        (
+                            rn.clone(),
+                            remote_if_id,
+                            ri.underlay.local.clone(),
+                            ri.underlay.remote.clone(),
+                        )
+                    })
                 } else {
                     // Core/child/parent: find remote interface pointing back to local_as
                     iface_index
                         .iter()
                         .find(|(key, (_, ri))| key.0 == remote_as && ri.isd_as == local_as)
                         .map(|(key, (rn, ri))| {
-                            (rn.clone(), key.1,
-                             ri.underlay.local.clone(), ri.underlay.remote.clone())
+                            (
+                                rn.clone(),
+                                key.1,
+                                ri.underlay.local.clone(),
+                                ri.underlay.remote.clone(),
+                            )
                         })
                 };
 
@@ -236,12 +240,16 @@ mod tests {
     fn build_topology_produces_correct_ases() {
         let topo = build_topology(make_fixture());
         assert_eq!(topo.ases.len(), 2);
-        let as110 = topo.ases.iter()
+        let as110 = topo
+            .ases
+            .iter()
             .find(|(k, _)| k.0.to_string() == "1-ff00:0:110")
             .unwrap();
         assert!(as110.1.core);
         assert_eq!(as110.1.mtu, Some(1472));
-        let as111 = topo.ases.iter()
+        let as111 = topo
+            .ases
+            .iter()
             .find(|(k, _)| k.0.to_string() == "1-ff00:0:111")
             .unwrap();
         assert!(!as111.1.core);
