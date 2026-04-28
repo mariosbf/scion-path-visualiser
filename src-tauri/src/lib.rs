@@ -35,8 +35,8 @@ async fn stream_output(
 ) -> Result<(), String> {
     use tokio::io::{AsyncBufReadExt, BufReader};
 
-    let stdout = child.stdout.take().unwrap();
-    let stderr = child.stderr.take().unwrap();
+    let stdout = child.stdout.take().ok_or("stdout not piped")?;
+    let stderr = child.stderr.take().ok_or("stderr not piped")?;
 
     let app_out = app.clone();
     let event_out = event.to_owned();
