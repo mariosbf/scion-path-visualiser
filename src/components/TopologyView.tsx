@@ -1,23 +1,41 @@
-import React, { useState, useCallback, useMemo, useEffect } from "react";
 import {
-  ReactFlow,
+  ActionIcon,
+  ActionIconProps,
+  Badge,
+  Divider,
+  Drawer,
+  Group,
+  PolymorphicComponentProps,
+  Stack,
+  Text,
+  Tooltip,
+} from "@mantine/core";
+import { IconCheck, IconCopy } from "@tabler/icons-react";
+import {
   Background,
   Controls,
-  useNodesState,
+  ReactFlow,
   useEdgesState,
-  type NodeMouseHandler,
+  useNodesState,
   type EdgeMouseHandler,
+  type NodeMouseHandler,
   type NodeTypes,
 } from "@xyflow/react";
-import { Drawer, Text, Stack, Badge } from "@mantine/core";
 import "@xyflow/react/dist/style.css";
-import { buildGraph } from "../lib/topology";
-import { layoutGraph } from "../lib/layout";
-import { IsdNode } from "./nodes/IsdNode";
-import { AsNode } from "./nodes/AsNode";
-import { RouterNode } from "./nodes/RouterNode";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import type { Topology } from "../bindings";
-import type { TopologyNode, TopologyEdge } from "../lib/topology";
+import { layoutGraph } from "../lib/layout";
+import type {
+  AsNodeData,
+  IsdNodeData,
+  RouterNodeData,
+  TopologyEdge,
+  TopologyNode,
+} from "../lib/topology";
+import { buildGraph } from "../lib/topology";
+import { AsNode } from "./nodes/AsNode";
+import { IsdNode } from "./nodes/IsdNode";
+import { RouterNode } from "./nodes/RouterNode";
 
 const nodeTypes: NodeTypes = { isd: IsdNode, as: AsNode, router: RouterNode };
 
@@ -49,11 +67,11 @@ export function TopologyView({ topology }: Props) {
 
   const onNodeClick: NodeMouseHandler<TopologyNode> = useCallback(
     (_: React.MouseEvent, node: TopologyNode) => setSelected(node),
-    []
+    [],
   );
   const onEdgeClick: EdgeMouseHandler<TopologyEdge> = useCallback(
     (_: React.MouseEvent, edge: TopologyEdge) => setSelected(edge),
-    []
+    [],
   );
 
   const styledEdges = useMemo(
@@ -62,7 +80,7 @@ export function TopologyView({ topology }: Props) {
         ...edge,
         ...(edgeStyle[edge.data?.linkType ?? "Core"] ?? {}),
       })),
-    [edges]
+    [edges],
   );
 
   return (
@@ -96,66 +114,120 @@ export function TopologyView({ topology }: Props) {
   );
 }
 
-function DetailsPanel({ element }: { element: TopologyNode | TopologyEdge }) {
-  if ("source" in element) {
-    const edge = element as TopologyEdge;
-    return (
-      <Stack gap="xs">
-        <Text fw={600} size="sm">Link</Text>
-        <Badge
-          color={
-            edge.data?.linkType === "Core"
-              ? "blue"
-              : edge.data?.linkType === "Child"
+function CopyActionIcon({
+  value,
+  ...props
+}: { value: string | number } & PolymorphicComponentProps<
+  "button",
+  ActionIconProps
+>) {
+  const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    if (copied) {
+      const timeout = setTimeout(() => setCopied(false), 2000);
+      return () => clearTimeout(timeout);
+    }
+  }, [copied]);
+
+  const onClick: React.MouseEventHandler<HTMLButtonElement> = (e) => {
+    props.onClick?.(e);
+    navigator.clipboard.writeText(String(value));
+    setCopied(true);
+  };
+
+  return (
+    <Tooltip label={copied ? "Copied" : "Copy"}>
+      <ActionIcon
+        variant="default"
+        aria-label="Copy to clipboard"
+        {...props}
+        onClick={onClick}
+      >
+        {copied ? <IconCheck size={16} /> : <IconCopy size={16} />}
+      </ActionIcon>
+    </Tooltip>
+  );
+}
+
+function InfoItem({ label, value }: { label: string; value: string | number }) {
+  return (
+    <>
+      <Stack gap={2}>
+        <Text c="dimmed">{label}</Text>
+        <Group justify="space-between">
+          <Text>{value}</Text>
+          <CopyActionIcon value={value} />
+        </Group>
+      </Stack>
+      <Divider />
+    </>
+  );
+}
+
+function RouterDetails({ node }: { node: RouterNodeData }) {
+  return (
+    <Stack gap="sm">
+      <InfoItem label="Router" value={node.routerName} />
+      <InfoItem label="AS" value={node.asId} />
+      <InfoItem label="Interface ID" value={node.interfaceId} />
+      <InfoItem label="Underlay local" value={node.underlayLocal} />
+      <InfoItem label="Underlay remote" value={node.underlayRemote} />
+    </Stack>
+  );
+}
+
+function IsdDetails({ node }: { node: IsdNodeData }) {
+  return (
+    <Stack gap="sm">
+      <InfoItem label="ISD" value={node.isd} />
+    </Stack>
+  );
+}
+
+function AsDetails({ node }: { node: AsNodeData }) {
+  return (
+    <Stack gap="sm">
+      <InfoItem label="AS" value={node.asId} />
+      {node.core && <Badge color="orange">Core</Badge>}
+      {node.mtu !== null && <InfoItem label="MTU" value={node.mtu} />}
+    </Stack>
+  );
+}
+
+function EdgeDetails({ edge }: { edge: TopologyEdge }) {
+  return (
+    <Stack gap="sm">
+      <InfoItem label="Source" value={edge.source} />
+      <InfoItem label="Target" value={edge.target} />
+      <Badge
+        color={
+          edge.data?.linkType === "Core"
+            ? "orange"
+            : edge.data?.linkType === "Child"
               ? "green"
-              : "orange"
-          }
-        >
-          {edge.data?.linkType}
-        </Badge>
-        <Text size="sm" c="dimmed">Source</Text>
-        <Text size="sm">{edge.source}</Text>
-        <Text size="sm" c="dimmed">Target</Text>
-        <Text size="sm">{edge.target}</Text>
-      </Stack>
-    );
+              : "blue"
+        }
+      >
+        {edge.data?.linkType}
+      </Badge>
+    </Stack>
+  );
+}
+
+function DetailsPanel({ element }: { element: TopologyNode | TopologyEdge }) {
+  // Router node details
+  if (element.type === "router") {
+    const node = element as TopologyNode;
+    return <RouterDetails node={node.data as RouterNodeData} />;
+  } else if (element.type === "isd") {
+    const node = element as TopologyNode;
+    return <IsdDetails node={node.data as IsdNodeData} />;
+  } else if (element.type === "as") {
+    const node = element as TopologyNode;
+    return <AsDetails node={node.data as AsNodeData} />;
+  } else {
+    const edge = element as TopologyEdge;
+    return <EdgeDetails edge={edge} />;
   }
-
-  const node = element as TopologyNode;
-
-  if (node.type === "isd") {
-    return (
-      <Stack gap="xs">
-        <Text fw={600} size="sm">{node.data.label}</Text>
-      </Stack>
-    );
-  }
-
-  if (node.type === "as") {
-    return (
-      <Stack gap="xs">
-        <Text fw={600} size="sm">{node.data.asId}</Text>
-        {node.data.core && <Badge color="orange">Core</Badge>}
-        {node.data.mtu !== null && <Text size="sm">MTU: {node.data.mtu}</Text>}
-      </Stack>
-    );
-  }
-
-  if (node.type === "router") {
-    return (
-      <Stack gap="xs">
-        <Text fw={600} size="sm">{node.data.routerName}</Text>
-        <Text size="sm" c="dimmed">AS</Text>
-        <Text size="sm">{node.data.asId}</Text>
-        <Text size="sm" c="dimmed">Interface ID</Text>
-        <Text size="sm">{node.data.interfaceId}</Text>
-        <Text size="sm" c="dimmed">Underlay local</Text>
-        <Text size="sm">{node.data.underlayLocal}</Text>
-        <Text size="sm" c="dimmed">Underlay remote</Text>
-        <Text size="sm">{node.data.underlayRemote}</Text>
-      </Stack>
-    );
-  }
-
-  return null;
 }
