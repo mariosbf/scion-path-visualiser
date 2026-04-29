@@ -1,0 +1,175 @@
+import { useEffect, useRef, useState } from "react";
+import { useNavigate, useParams } from "@tanstack/react-router";
+import {
+  ActionIcon,
+  Box,
+  Divider,
+  Group,
+  Stack,
+  Text,
+} from "@mantine/core";
+import { IconArrowLeft } from "@tabler/icons-react";
+import { listen } from "@tauri-apps/api/event";
+import { commands } from "../../bindings";
+import { session } from "../../lib/session";
+import { TerminalOutput } from "../../components/TerminalOutput";
+
+interface LogOutputPayload {
+  stream_id: string;
+  line: string;
+}
+
+export function RouterLogsRoute() {
+  const navigate = useNavigate();
+  const { routerName } = useParams({ strict: false }) as { routerName: string };
+  const folder = session.getFolder();
+  const topology = session.getTopology();
+
+  const [lines, setLines] = useState<string[]>([]);
+  const [error, setError] = useState<string | null>(null);
+  const streamIdRef = useRef<string | null>(null);
+
+  // Resolve AS ID and interface ID from topology for the meta strip
+  let asId = "";
+  let interfaceId: number | null = null;
+  if (topology) {
+    for (const link of topology.links) {
+      if (link.a.router_name === routerName) {
+        asId = link.a.as_id;
+        interfaceId = link.a.interface_id;
+        break;
+      }
+      if (link.b.router_name === routerName) {
+        asId = link.b.as_id;
+        interfaceId = link.b.interface_id;
+        break;
+      }
+    }
+  }
+
+  useEffect(() => {
+    if (!folder) {
+      navigate({ to: "/setup" });
+      return;
+    }
+
+    let cancelled = false;
+    let unlisten: (() => void) | undefined;
+
+    async function start() {
+      const unlistenFn = await listen<LogOutputPayload>("log-output", (e) => {
+        if (cancelled) return;
+        if (e.payload.stream_id !== streamIdRef.current) return;
+        setLines((prev) => [...prev, e.payload.line]);
+      });
+
+      if (cancelled) {
+        unlistenFn();
+        return;
+      }
+      unlisten = unlistenFn;
+
+      const result = await commands.startLogStream(folder!, routerName);
+      if (cancelled) return;
+      if (result.status === "error") {
+        setError(result.error);
+        return;
+      }
+      streamIdRef.current = result.data;
+    }
+
+    start();
+
+    return () => {
+      cancelled = true;
+      unlisten?.();
+      if (streamIdRef.current) {
+        commands.stopLogStream(streamIdRef.current);
+        streamIdRef.current = null;
+      }
+    };
+  }, [folder, routerName, navigate]);
+
+  return (
+    <Stack gap={0} style={{ height: "100%" }}>
+      {/* Header bar */}
+      <Group
+        px="md"
+        py="xs"
+        style={{ borderBottom: "1px solid var(--mantine-color-dark-4)" }}
+      >
+        <ActionIcon
+          variant="subtle"
+          color="gray"
+          onClick={() => navigate({ to: "/app/topology" })}
+          aria-label="Back to topology"
+        >
+          <IconArrowLeft size={16} />
+        </ActionIcon>
+        <Text fw={600} ff="monospace" size="sm">
+          {routerName}
+        </Text>
+        <Text size="sm" c="dimmed">
+          Logs
+        </Text>
+        <Box ml="auto" style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <Box
+            style={{
+              width: 8,
+              height: 8,
+              borderRadius: "50%",
+              background: "var(--mantine-color-green-5)",
+            }}
+          />
+          <Text size="xs" c="green">
+            Live
+          </Text>
+        </Box>
+      </Group>
+
+      {/* Meta strip */}
+      <Group
+        px="md"
+        py={4}
+        gap="xl"
+        style={{ borderBottom: "1px solid var(--mantine-color-dark-4)" }}
+      >
+        {asId && (
+          <Text size="xs" c="dimmed">
+            AS{" "}
+            <Text span size="xs" ff="monospace" c="default">
+              {asId}
+            </Text>
+          </Text>
+        )}
+        {interfaceId !== null && (
+          <Text size="xs" c="dimmed">
+            Interface{" "}
+            <Text span size="xs" ff="monospace" c="default">
+              {interfaceId}
+            </Text>
+          </Text>
+        )}
+        <Text size="xs" c="dimmed">
+          logs/
+          <Text span size="xs" ff="monospace" c="default">
+            {routerName}.log
+          </Text>
+        </Text>
+      </Group>
+
+      <Divider />
+
+      {/* Log output */}
+      <Box flex={1} p="md">
+        {error ? (
+          <Text c="red" size="sm">
+            {error}
+          </Text>
+        ) : (
+          <TerminalOutput lines={lines} height="100%" />
+        )}
+      </Box>
+    </Stack>
+  );
+}
