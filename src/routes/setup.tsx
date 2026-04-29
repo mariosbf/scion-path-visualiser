@@ -25,7 +25,6 @@ import { getRecent, pushRecent } from "../lib/store";
 import { session } from "../lib/session";
 import logo from "../assets/logo.png";
 import classes from "./Setup.module.css";
-import { debug } from "@tauri-apps/plugin-log";
 import { IconArrowLeft } from "@tabler/icons-react";
 
 interface WizardState {
@@ -311,6 +310,7 @@ function LoadingStep({
 }) {
   const navigate = useNavigate();
   const [lines, setLines] = useState<string[]>([]);
+  const [title, setTitle] = useState<string>("…");
   const [error, setError] = useState<string | null>(null);
   const viewportRef = useRef<HTMLDivElement>(null);
 
@@ -322,31 +322,36 @@ function LoadingStep({
 
   useEffect(() => {
     let cancelled = false;
-    let cleanupUnlisten: (() => void) | undefined;
+    let cleanupOutput: (() => void) | undefined;
+    let cleanupPhase: (() => void) | undefined;
 
     async function run() {
-      const unlistenFn = await listen<string>("topology-config-output", (e) => {
+      const unlistenOutput = await listen<string>("scion-setup-output", (e) => {
         if (cancelled) return;
         setLines((prev) => [...prev, e.payload]);
       });
 
+      const unlistenPhase = await listen<string>("scion-setup-phase", (e) => {
+        if (cancelled) return;
+        setTitle(e.payload);
+      });
+
       if (cancelled) {
-        unlistenFn();
+        unlistenOutput();
+        unlistenPhase();
         return;
       }
-      cleanupUnlisten = unlistenFn;
+      cleanupOutput = unlistenOutput;
+      cleanupPhase = unlistenPhase;
 
-      const configResult = await commands.createTopologyConfig(
-        folder,
-        topoFile,
-      );
+      const setupResult = await commands.setupScionNetwork(folder, topoFile);
       if (cancelled) return;
-      if (configResult.status === "error") {
-        setError(configResult.error);
+      if (setupResult.status === "error") {
+        setError(setupResult.error);
         return;
       }
 
-      const topoResult = await commands.loadProject(configResult.data);
+      const topoResult = await commands.loadProject(setupResult.data);
       if (cancelled) return;
       if (topoResult.status === "error") {
         setError(topoResult.error);
@@ -363,7 +368,8 @@ function LoadingStep({
 
     return () => {
       cancelled = true;
-      cleanupUnlisten?.();
+      cleanupOutput?.();
+      cleanupPhase?.();
     };
   }, [folder, topoFile, navigate]);
 
@@ -384,7 +390,7 @@ function LoadingStep({
     <ScrollArea h={500} viewportRef={viewportRef}>
       <Paper radius="md" withBorder style={{ overflow: "hidden" }}>
         <Group justify="space-between" p="sm" bg="gray.9">
-          <Text size="sm">Generating topology configuration…</Text>
+          <Text size="sm">{title}</Text>
           <Loader size="xs" />
         </Group>
         <Divider />
