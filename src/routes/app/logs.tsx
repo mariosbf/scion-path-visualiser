@@ -21,12 +21,13 @@ interface LogOutputPayload {
 
 export function RouterLogsRoute() {
   const navigate = useNavigate();
-  const { routerName } = useParams({ strict: false }) as { routerName: string };
+  const { routerName } = useParams({ from: "/app/logs/$routerName" });
   const folder = session.getFolder();
   const topology = session.getTopology();
 
   const [lines, setLines] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [streaming, setStreaming] = useState(false);
   const streamIdRef = useRef<string | null>(null);
 
   // Resolve AS ID and interface ID from topology for the meta strip
@@ -76,6 +77,7 @@ export function RouterLogsRoute() {
         return;
       }
       streamIdRef.current = result.data;
+      setStreaming(true);
     }
 
     start();
@@ -83,8 +85,11 @@ export function RouterLogsRoute() {
     return () => {
       cancelled = true;
       unlisten?.();
+      setStreaming(false);
       if (streamIdRef.current) {
-        commands.stopLogStream(streamIdRef.current);
+        commands.stopLogStream(streamIdRef.current).catch((err: unknown) => {
+          console.warn("stopLogStream failed:", err);
+        });
         streamIdRef.current = null;
       }
     };
@@ -112,19 +117,21 @@ export function RouterLogsRoute() {
         <Text size="sm" c="dimmed">
           Logs
         </Text>
-        <Box ml="auto" style={{ display: "flex", alignItems: "center", gap: 6 }}>
-          <Box
-            style={{
-              width: 8,
-              height: 8,
-              borderRadius: "50%",
-              background: "var(--mantine-color-green-5)",
-            }}
-          />
-          <Text size="xs" c="green">
-            Live
-          </Text>
-        </Box>
+        {streaming && (
+          <Box ml="auto" style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <Box
+              style={{
+                width: 8,
+                height: 8,
+                borderRadius: "50%",
+                background: "var(--mantine-color-green-5)",
+              }}
+            />
+            <Text size="xs" c="green">
+              Live
+            </Text>
+          </Box>
+        )}
       </Group>
 
       {/* Meta strip */}
@@ -137,7 +144,7 @@ export function RouterLogsRoute() {
         {asId && (
           <Text size="xs" c="dimmed">
             AS{" "}
-            <Text span size="xs" ff="monospace" c="default">
+            <Text span size="xs" ff="monospace">
               {asId}
             </Text>
           </Text>
@@ -145,14 +152,14 @@ export function RouterLogsRoute() {
         {interfaceId !== null && (
           <Text size="xs" c="dimmed">
             Interface{" "}
-            <Text span size="xs" ff="monospace" c="default">
+            <Text span size="xs" ff="monospace">
               {interfaceId}
             </Text>
           </Text>
         )}
         <Text size="xs" c="dimmed">
           logs/
-          <Text span size="xs" ff="monospace" c="default">
+          <Text span size="xs" ff="monospace">
             {routerName}.log
           </Text>
         </Text>
