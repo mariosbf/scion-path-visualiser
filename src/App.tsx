@@ -1,21 +1,15 @@
-import { useState } from "react";
 import {
-  MantineProvider,
   AppShell,
-  Stack,
-  ActionIcon,
   Divider,
-  Box,
+  Group,
+  MantineProvider,
+  Stack,
 } from "@mantine/core";
-import { useDisclosure } from "@mantine/hooks";
 import "@mantine/core/styles.css";
+import { useDisclosure } from "@mantine/hooks";
+import { IconFolderOpen, IconSettings } from "@tabler/icons-react";
+import { useState } from "react";
 import "./App.css";
-import {
-  IconFolderOpen,
-  IconSettings,
-  IconSun,
-  IconMoon,
-} from "@tabler/icons-react";
 import { NavHeader } from "./components/NavHeader";
 import { NavItem } from "./components/NavItem";
 import { TitleBar } from "./components/TitleBar";
@@ -28,27 +22,27 @@ const NAV_ITEMS = [
 ];
 
 function App() {
-  const [colorScheme, setColorScheme] = useState<ColorScheme>("dark");
+  const [colorScheme, _] = useState<ColorScheme>("dark");
   const [opened, { toggle }] = useDisclosure(true);
 
   return (
     <MantineProvider forceColorScheme={colorScheme}>
       <AppShell
-        header={{ height: 32 }}
+        header={{ height: 30 }}
         navbar={{ width: opened ? 220 : 60, breakpoint: "sm" }}
         padding={0}
       >
-        <AppShell.Header style={{ borderBottom: "1px solid var(--mantine-color-default-border)" }}>
+        <AppShell.Header bg="dark">
           <TitleBar />
         </AppShell.Header>
 
+        <Group pos="absolute" top={0} right={0}>
+          Hello
+        </Group>
+
         <AppShell.Navbar>
           <AppShell.Section>
-            <NavHeader
-              expanded={opened}
-              onToggle={toggle}
-            />
-            <Divider />
+            <NavHeader expanded={opened} onToggle={toggle} />
           </AppShell.Section>
 
           <AppShell.Section grow>
@@ -66,27 +60,6 @@ function App() {
 
           <AppShell.Section>
             <Divider mb={8} />
-            <Box
-              p={8}
-              pb={16}
-              style={{ display: "flex", justifyContent: opened ? "flex-start" : "center" }}
-            >
-              <ActionIcon
-                variant="subtle"
-                color="gray"
-                size="lg"
-                onClick={() =>
-                  setColorScheme((s) => (s === "dark" ? "light" : "dark"))
-                }
-                aria-label="Toggle color scheme"
-              >
-                {colorScheme === "dark" ? (
-                  <IconSun size={20} stroke={1.5} />
-                ) : (
-                  <IconMoon size={20} stroke={1.5} />
-                )}
-              </ActionIcon>
-            </Box>
           </AppShell.Section>
         </AppShell.Navbar>
 

@@ -10,7 +10,7 @@ export function NavHeader({ expanded, onToggle }: NavHeaderProps) {
   return (
     <Group
       justify={expanded ? "space-between" : "center"}
-      style={{ padding: "12px 8px", height: 56 }}
+      style={{ padding: "12px 8px", height: 50 }}
     >
       {expanded && (
         <Text fw={700} size="lg" style={{ letterSpacing: -0.5 }}>
