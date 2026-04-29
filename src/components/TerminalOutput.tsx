@@ -14,9 +14,10 @@ interface TerminalOutputProps {
   lines: string[];
   title?: string;
   loading?: boolean;
+  height?: number | string;
 }
 
-export function TerminalOutput({ lines, title, loading }: TerminalOutputProps) {
+export function TerminalOutput({ lines, title, loading, height }: TerminalOutputProps) {
   const viewportRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -26,7 +27,7 @@ export function TerminalOutput({ lines, title, loading }: TerminalOutputProps) {
   }, [lines]);
 
   return (
-    <ScrollArea h={500} viewportRef={viewportRef}>
+    <ScrollArea h={height ?? 500} viewportRef={viewportRef}>
       <Paper radius="md" withBorder style={{ overflow: "hidden" }}>
         {title !== undefined && (
           <>
