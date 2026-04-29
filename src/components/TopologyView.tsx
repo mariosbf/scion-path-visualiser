@@ -1,4 +1,4 @@
-import { Badge, Divider, Drawer, Group, Stack, Text } from "@mantine/core";
+import { Badge, Button, Divider, Drawer, Group, Stack, Text } from "@mantine/core";
 import {
   Background,
   Controls,
@@ -10,7 +10,9 @@ import {
   type NodeTypes,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
+import { IconFileText } from "@tabler/icons-react";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { useNavigate } from "@tanstack/react-router";
 import type { Topology } from "../bindings";
 import { layoutGraph } from "../lib/layout";
 import type {
@@ -138,6 +140,7 @@ function InfoItem({
 }
 
 function RouterDetails({ node }: { node: RouterNodeData }) {
+  const navigate = useNavigate();
   return (
     <Stack gap="sm">
       <InfoItem label="Router" value={node.routerName} />
@@ -145,6 +148,18 @@ function RouterDetails({ node }: { node: RouterNodeData }) {
       <InfoItem label="Interface ID" value={node.interfaceId} />
       <InfoItem label="Underlay local" value={node.underlayLocal} />
       <InfoItem label="Underlay remote" value={node.underlayRemote} />
+      <Button
+        variant="light"
+        leftSection={<IconFileText size={14} />}
+        onClick={() =>
+          navigate({
+            to: "/app/logs/$routerName",
+            params: { routerName: node.routerName },
+          })
+        }
+      >
+        View Logs
+      </Button>
     </Stack>
   );
 }
