@@ -1,9 +1,12 @@
 pub mod topology;
 
 use std::collections::HashMap;
+use std::sync::Mutex;
 use tauri::{Emitter, Manager};
 use tauri_specta::{collect_commands, Builder};
 use topology::{build_topology, IsdAsnDef, RawAsTopology, RawHbirdConfig, Topology};
+
+struct LogStreams(Mutex<HashMap<String, tokio::process::Child>>);
 
 #[tauri::command]
 #[specta::specta]
@@ -83,6 +86,88 @@ async fn stream_output(
 
     let _ = tokio::join!(stdout_task, stderr_task);
     Ok(())
+}
+
+#[derive(serde::Serialize, Clone)]
+struct LogOutputPayload {
+    stream_id: String,
+    line: String,
+}
+
+#[tauri::command]
+#[specta::specta]
+async fn start_log_stream(
+    app: tauri::AppHandle,
+    state: tauri::State<'_, LogStreams>,
+    folder: String,
+    router_name: String,
+) -> Result<String, String> {
+    use std::process::Stdio;
+    use tokio::io::{AsyncBufReadExt, BufReader};
+
+    let log_path = std::path::Path::new(&folder)
+        .join("logs")
+        .join(format!("{router_name}.log"));
+
+    if !log_path.exists() {
+        return Err(format!("Log file not found: {}", log_path.display()));
+    }
+
+    let mut child = tokio::process::Command::new("tail")
+        .args([
+            "-n",
+            "200",
+            "-f",
+            log_path.to_str().ok_or("Log path contains invalid Unicode")?,
+        ])
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        .spawn()
+        .map_err(|e| format!("Failed to spawn tail: {e}"))?;
+
+    let stdout = child.stdout.take().ok_or("stdout not piped")?;
+    let stream_id = uuid::Uuid::new_v4().to_string();
+
+    {
+        let mut map = state.0.lock().unwrap();
+        map.insert(stream_id.clone(), child);
+    }
+
+    let app_clone = app.clone();
+    let sid = stream_id.clone();
+    tokio::spawn(async move {
+        let mut lines = BufReader::new(stdout).lines();
+        while let Ok(Some(line)) = lines.next_line().await {
+            app_clone
+                .emit(
+                    "log-output",
+                    LogOutputPayload {
+                        stream_id: sid.clone(),
+                        line,
+                    },
+                )
+                .ok();
+        }
+    });
+
+    Ok(stream_id)
+}
+
+#[tauri::command]
+#[specta::specta]
+async fn stop_log_stream(
+    state: tauri::State<'_, LogStreams>,
+    stream_id: String,
+) -> Result<(), String> {
+    let mut child = {
+        let mut map = state.0.lock().unwrap();
+        map.remove(&stream_id)
+            .ok_or_else(|| format!("Stream not found: {stream_id}"))?
+    }; // lock dropped here before await
+    child
+        .kill()
+        .await
+        .map_err(|e| format!("Failed to kill tail process: {e}"))
 }
 
 #[tauri::command]
@@ -211,7 +296,9 @@ pub fn run() {
         greet,
         load_project,
         setup_scion_network,
-        list_topology_files
+        list_topology_files,
+        start_log_stream,
+        stop_log_stream
     ]);
 
     #[cfg(debug_assertions)]
@@ -239,6 +326,7 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_store::Builder::default().build())
+        .manage(LogStreams(Mutex::new(HashMap::new())))
         .invoke_handler(builder.invoke_handler())
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
@@ -254,7 +342,9 @@ mod tests {
                 super::greet,
                 super::load_project,
                 super::setup_scion_network,
-                super::list_topology_files
+                super::list_topology_files,
+                super::start_log_stream,
+                super::stop_log_stream
             ])
             .export(
                 specta_typescript::Typescript::default().header("// @ts-nocheck"),
