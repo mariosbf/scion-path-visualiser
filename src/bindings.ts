@@ -5,9 +5,6 @@
 
 
 export const commands = {
-async greet(name: string) : Promise<string> {
-    return await TAURI_INVOKE("greet", { name });
-},
 async loadProject(genDir: string) : Promise<Result<Topology, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("load_project", { genDir }) };

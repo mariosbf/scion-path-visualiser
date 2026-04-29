@@ -10,12 +10,6 @@ struct LogStreams(Mutex<HashMap<String, tokio::process::Child>>);
 
 #[tauri::command]
 #[specta::specta]
-fn greet(name: &str) -> String {
-    format!("Hello, {}! You've been greeted from Rust!", name)
-}
-
-#[tauri::command]
-#[specta::specta]
 fn load_project(gen_dir: String) -> Result<Topology, String> {
     let pattern = format!("{gen_dir}/AS*/topology.json");
     let mut hbird_map: HashMap<IsdAsnDef, RawHbirdConfig> = HashMap::new();
@@ -118,7 +112,9 @@ async fn start_log_stream(
             "-n",
             "200",
             "-f",
-            log_path.to_str().ok_or("Log path contains invalid Unicode")?,
+            log_path
+                .to_str()
+                .ok_or("Log path contains invalid Unicode")?,
         ])
         .stdout(Stdio::piped())
         .stderr(Stdio::null())
@@ -165,7 +161,7 @@ async fn stop_log_stream(
         map.remove(&stream_id)
             .ok_or_else(|| format!("Stream not found: {stream_id}"))?
     }; // lock dropped here before await
-    // Ignore errors from kill() — process may have already exited
+       // Ignore errors from kill() — process may have already exited
     let _ = child.kill().await;
     // Reap the child to avoid zombie processes
     let _ = child.wait().await;
@@ -295,7 +291,6 @@ fn list_topology_files(folder: String) -> Result<Vec<String>, String> {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let builder = Builder::<tauri::Wry>::new().commands(collect_commands![
-        greet,
         load_project,
         setup_scion_network,
         list_topology_files,
@@ -341,7 +336,6 @@ mod tests {
         use tauri_specta::{collect_commands, Builder};
         Builder::<tauri::Wry>::new()
             .commands(collect_commands![
-                super::greet,
                 super::load_project,
                 super::setup_scion_network,
                 super::list_topology_files,
