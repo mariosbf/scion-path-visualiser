@@ -71,9 +71,13 @@ export function RouterLogsRoute() {
       unlisten = unlistenFn;
 
       const result = await commands.startLogStream(folder!, routerName);
-      if (cancelled) return;
       if (result.status === "error") {
-        setError(result.error);
+        if (!cancelled) setError(result.error);
+        return;
+      }
+      if (cancelled) {
+        // Cleanup already ran while startLogStream was in-flight; stop the orphaned stream.
+        commands.stopLogStream(result.data).catch(() => {});
         return;
       }
       streamIdRef.current = result.data;
