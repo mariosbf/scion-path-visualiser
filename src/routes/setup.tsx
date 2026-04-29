@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import {
   Button,
   Group,
@@ -6,7 +6,6 @@ import {
   Stack,
   ScrollArea,
   Image,
-  Paper,
   Code,
   Box,
   Card,
@@ -15,12 +14,12 @@ import {
   Radio,
   RadioIndicator,
   Title,
-  Loader,
 } from "@mantine/core";
 import { open } from "@tauri-apps/plugin-dialog";
 import { listen } from "@tauri-apps/api/event";
 import { useNavigate } from "@tanstack/react-router";
 import { commands } from "../bindings";
+import { TerminalOutput } from "../components/TerminalOutput";
 import { getRecent, pushRecent } from "../lib/store";
 import { session } from "../lib/session";
 import logo from "../assets/logo.png";
@@ -312,13 +311,6 @@ function LoadingStep({
   const [lines, setLines] = useState<string[]>([]);
   const [title, setTitle] = useState<string>("…");
   const [error, setError] = useState<string | null>(null);
-  const viewportRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (viewportRef.current) {
-      viewportRef.current.scrollTop = viewportRef.current.scrollHeight;
-    }
-  }, [lines]);
 
   useEffect(() => {
     let cancelled = false;
@@ -386,42 +378,5 @@ function LoadingStep({
     );
   }
 
-  return (
-    <ScrollArea h={500} viewportRef={viewportRef}>
-      <Paper radius="md" withBorder style={{ overflow: "hidden" }}>
-        <Group justify="space-between" p="sm" bg="gray.9">
-          <Text size="sm">{title}</Text>
-          <Loader size="xs" />
-        </Group>
-        <Divider />
-        <Group gap={0} align="stretch">
-          <Box
-            py="sm"
-            px="sm"
-            bg="gray.9"
-            style={{
-              borderRight: "1px solid var(--mantine-color-gray-7)",
-              userSelect: "none",
-            }}
-          >
-            {lines.map((_, i) => (
-              <Text
-                key={i}
-                size="xs"
-                ff="monospace"
-                c="dimmed"
-                ta="right"
-                lh={1.6}
-              >
-                {i + 1}
-              </Text>
-            ))}
-          </Box>
-          <Code block p="md" bg="gray.9" flex={1}>
-            {lines.length > 0 ? lines.join("\n") : "Running…"}
-          </Code>
-        </Group>
-      </Paper>
-    </ScrollArea>
-  );
+  return <TerminalOutput lines={lines} title={title} loading />;
 }
