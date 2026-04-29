@@ -1,5 +1,9 @@
 import type { Node, Edge } from "@xyflow/react";
-import type { Topology } from "../bindings";
+import type {
+  ControlServiceInfo,
+  DiscoveryServiceInfo,
+  Topology,
+} from "../bindings";
 
 export interface IsdNodeData extends Record<string, unknown> {
   label: string;
@@ -11,6 +15,8 @@ export interface AsNodeData extends Record<string, unknown> {
   asId: string;
   core: boolean;
   mtu: number | null;
+  control_service: ControlServiceInfo;
+  discovery_service: DiscoveryServiceInfo;
 }
 
 export interface RouterNodeData extends Record<string, unknown> {
@@ -43,7 +49,7 @@ export function buildGraph(topology: Topology): {
 
   // ISD nodes — one per unique ISD number
   const isdIds = new Set(
-    Object.keys(topology.ases).map((id) => id.split("-")[0])
+    Object.keys(topology.ases).map((id) => id.split("-")[0]),
   );
   for (const isd of isdIds) {
     nodes.push({
@@ -65,6 +71,8 @@ export function buildGraph(topology: Topology): {
         asId,
         core: asInfo.core,
         mtu: asInfo.mtu,
+        control_service: asInfo.control_service,
+        discovery_service: asInfo.discovery_service,
       },
       parentId: `isd-${isd}`,
       extent: "parent",

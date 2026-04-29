@@ -1,11 +1,4 @@
-import {
-  Badge,
-  Divider,
-  Drawer,
-  Group,
-  Stack,
-  Text
-} from "@mantine/core";
+import { Badge, Divider, Drawer, Group, Stack, Text } from "@mantine/core";
 import {
   Background,
   Controls,
@@ -110,16 +103,34 @@ export function TopologyView({ topology }: Props) {
   );
 }
 
+function InfoItem({
+  label,
+  ...props
+}: { label: string } & (
+  | {
+    value: string | number;
+    values?: never;
+  }
+  | {
+    value?: never;
+    values: (string | number)[];
+  }
+)) {
+  const item = (v: string | number) => (
+    <Group justify="space-between" key={v}>
+      <Text>{v}</Text>
+      <CopyActionIcon value={v} />
+    </Group>
+  );
 
-function InfoItem({ label, value }: { label: string; value: string | number }) {
+  const value =
+    props.value !== undefined ? item(props.value) : props.values?.map(item);
+
   return (
     <>
-      <Stack gap={2}>
+      <Stack gap={4}>
         <Text c="dimmed">{label}</Text>
-        <Group justify="space-between">
-          <Text>{value}</Text>
-          <CopyActionIcon value={value} />
-        </Group>
+        <Stack gap={4}>{value}</Stack>
       </Stack>
       <Divider />
     </>
@@ -150,6 +161,14 @@ function AsDetails({ node }: { node: AsNodeData }) {
   return (
     <Stack gap="sm">
       <InfoItem label="AS" value={node.asId} />
+      <InfoItem
+        label="Control Service"
+        values={[node.control_service.name, node.discovery_service.addr]}
+      />
+      <InfoItem
+        label="Discovery Service"
+        values={[node.discovery_service.name, node.discovery_service.addr]}
+      />
       {node.core && <Badge color="orange">Core</Badge>}
       {node.mtu !== null && <InfoItem label="MTU" value={node.mtu} />}
     </Stack>
