@@ -122,6 +122,7 @@ async fn start_log_stream(
         ])
         .stdout(Stdio::piped())
         .stderr(Stdio::null())
+        .kill_on_drop(true)
         .spawn()
         .map_err(|e| format!("Failed to spawn tail: {e}"))?;
 
@@ -164,10 +165,11 @@ async fn stop_log_stream(
         map.remove(&stream_id)
             .ok_or_else(|| format!("Stream not found: {stream_id}"))?
     }; // lock dropped here before await
-    child
-        .kill()
-        .await
-        .map_err(|e| format!("Failed to kill tail process: {e}"))
+    // Ignore errors from kill() — process may have already exited
+    let _ = child.kill().await;
+    // Reap the child to avoid zombie processes
+    let _ = child.wait().await;
+    Ok(())
 }
 
 #[tauri::command]
