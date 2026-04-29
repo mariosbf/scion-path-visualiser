@@ -25,7 +25,7 @@ fn load_project(gen_dir: String) -> Result<Topology, String> {
         })
         .collect::<Result<Vec<_>, String>>()?;
 
-    Ok(build_topology(raw_ases))
+    build_topology(raw_ases).map_err(|e| format!("Failed to build topology: {e}"))
 }
 
 #[tauri::command]

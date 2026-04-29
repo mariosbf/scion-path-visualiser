@@ -31,4 +31,5 @@ glob = "0.3"
 tauri-plugin-store = "2"
 tokio = { version = "1", features = ["process", "io-util"] }
 tauri-plugin-log = "2"
+anyhow = "1.0.102"
 

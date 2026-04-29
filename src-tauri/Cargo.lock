@@ -3857,6 +3857,7 @@ dependencies = [
 name = "scion-path-visualiser"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "glob",
  "scion-proto",
  "serde",

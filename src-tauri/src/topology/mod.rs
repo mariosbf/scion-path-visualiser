@@ -1,3 +1,4 @@
+use anyhow::Context;
 use scion_proto::address::IsdAsn;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -26,6 +27,20 @@ pub struct Topology {
 pub struct AsInfo {
     pub core: bool,
     pub mtu: Option<u32>,
+    pub control_service: ControlServiceInfo,
+    pub discovery_service: DiscoveryServiceInfo,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
+pub struct ControlServiceInfo {
+    pub addr: std::net::SocketAddr,
+    pub name: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
+pub struct DiscoveryServiceInfo {
+    pub addr: std::net::SocketAddr,
+    pub name: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
@@ -40,8 +55,8 @@ pub struct LinkEndpoint {
     pub as_id: IsdAsnDef,
     pub router_name: String,
     pub interface_id: u32,
-    pub underlay_local: String,
-    pub underlay_remote: String,
+    pub underlay_local: std::net::SocketAddr,
+    pub underlay_remote: std::net::SocketAddr,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
@@ -59,11 +74,25 @@ pub struct RawAsTopology {
     pub attributes: Vec<String>,
     pub mtu: Option<u32>,
     pub border_routers: HashMap<String, RawBorderRouter>,
+    pub control_service: HashMap<String, RawControlService>,
+    pub discovery_service: HashMap<String, RawDiscoveryService>,
+    pub dispatched_ports: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
 pub struct RawBorderRouter {
+    pub internal_addr: std::net::SocketAddr,
     pub interfaces: HashMap<String, RawInterface>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct RawControlService {
+    pub addr: std::net::SocketAddr,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct RawDiscoveryService {
+    pub addr: std::net::SocketAddr,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -77,24 +106,11 @@ pub struct RawInterface {
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct RawUnderlay {
-    pub local: String,
-    pub remote: String,
+    pub local: std::net::SocketAddr,
+    pub remote: std::net::SocketAddr,
 }
 
-pub fn build_topology(raw_ases: Vec<RawAsTopology>) -> Topology {
-    let ases: HashMap<IsdAsnDef, AsInfo> = raw_ases
-        .iter()
-        .map(|r| {
-            (
-                r.isd_as,
-                AsInfo {
-                    core: r.attributes.contains(&"core".to_string()),
-                    mtu: r.mtu,
-                },
-            )
-        })
-        .collect();
-
+pub fn build_topology(raw_ases: Vec<RawAsTopology>) -> anyhow::Result<Topology> {
     // Build interface index: (as_id, interface_id) -> (router_name, interface)
     let mut iface_index: HashMap<(IsdAsnDef, u32), (String, RawInterface)> = HashMap::new();
     for raw_as in &raw_ases {
@@ -133,8 +149,8 @@ pub fn build_topology(raw_ases: Vec<RawAsTopology>) -> Topology {
                         (
                             rn.clone(),
                             remote_if_id,
-                            ri.underlay.local.clone(),
-                            ri.underlay.remote.clone(),
+                            ri.underlay.local,
+                            ri.underlay.remote,
                         )
                     })
                 } else {
@@ -143,12 +159,7 @@ pub fn build_topology(raw_ases: Vec<RawAsTopology>) -> Topology {
                         .iter()
                         .find(|(key, (_, ri))| key.0 == remote_as && ri.isd_as == local_as)
                         .map(|(key, (rn, ri))| {
-                            (
-                                rn.clone(),
-                                key.1,
-                                ri.underlay.local.clone(),
-                                ri.underlay.remote.clone(),
-                            )
+                            (rn.clone(), key.1, ri.underlay.local, ri.underlay.remote)
                         })
                 };
 
@@ -170,8 +181,8 @@ pub fn build_topology(raw_ases: Vec<RawAsTopology>) -> Topology {
                         as_id: local_as,
                         router_name: router_name.clone(),
                         interface_id: if_id,
-                        underlay_local: iface.underlay.local.clone(),
-                        underlay_remote: iface.underlay.remote.clone(),
+                        underlay_local: iface.underlay.local,
+                        underlay_remote: iface.underlay.remote,
                     },
                     b: LinkEndpoint {
                         as_id: remote_as,
@@ -186,7 +197,37 @@ pub fn build_topology(raw_ases: Vec<RawAsTopology>) -> Topology {
         }
     }
 
-    Topology { ases, links }
+    let mut ases: HashMap<IsdAsnDef, AsInfo> = HashMap::new();
+    for raw_as in &raw_ases {
+        let (control_service_name, control_service_info) = raw_as
+            .control_service
+            .iter()
+            .next()
+            .context("Control service entry missing")?;
+        let (discovery_service_name, discovery_service_info) = raw_as
+            .discovery_service
+            .iter()
+            .next()
+            .context("Discovery service entry missing")?;
+
+        ases.insert(
+            raw_as.isd_as,
+            AsInfo {
+                core: raw_as.attributes.contains(&"core".to_string()),
+                mtu: raw_as.mtu,
+                control_service: ControlServiceInfo {
+                    addr: control_service_info.addr,
+                    name: control_service_name.clone(),
+                },
+                discovery_service: DiscoveryServiceInfo {
+                    addr: discovery_service_info.addr,
+                    name: discovery_service_name.clone(),
+                },
+            },
+        );
+    }
+
+    Ok(Topology { ases, links })
 }
 
 #[cfg(test)]
@@ -198,6 +239,16 @@ mod tests {
             "attributes": ["core"],
             "isd_as": "1-ff00:0:110",
             "mtu": 1472,
+            "control_service": {
+                "cs1-ff00_0_110-1": {
+                    "addr": "127.0.0.70:31000"
+                }
+            },
+            "discovery_service": {
+                "cs1-ff00_0_110-1": {
+                    "addr": "127.0.0.70:31000"
+                }
+            },
             "border_routers": {
                 "br1-ff00_0_110-1": {
                     "internal_addr": "127.0.0.1:31000",
@@ -216,6 +267,16 @@ mod tests {
             "attributes": [],
             "isd_as": "1-ff00:0:111",
             "mtu": 1472,
+            "control_service": {
+                "cs1-ff00_0_111-1": {
+                    "addr": "127.0.0.70:31001"
+                }
+            },
+            "discovery_service": {
+                "cs1-ff00_0_111-1": {
+                    "addr": "127.0.0.70:31001"
+                }
+            },
             "border_routers": {
                 "br1-ff00_0_111-1": {
                     "internal_addr": "127.0.0.2:31000",
@@ -238,7 +299,7 @@ mod tests {
 
     #[test]
     fn build_topology_produces_correct_ases() {
-        let topo = build_topology(make_fixture());
+        let topo = build_topology(make_fixture()).unwrap();
         assert_eq!(topo.ases.len(), 2);
         let as110 = topo
             .ases
@@ -257,13 +318,13 @@ mod tests {
 
     #[test]
     fn build_topology_deduplicates_to_one_link() {
-        let topo = build_topology(make_fixture());
+        let topo = build_topology(make_fixture()).unwrap();
         assert_eq!(topo.links.len(), 1);
     }
 
     #[test]
     fn build_topology_child_link_endpoints() {
-        let topo = build_topology(make_fixture());
+        let topo = build_topology(make_fixture()).unwrap();
         let link = &topo.links[0];
         assert!(matches!(link.link_type, LinkType::Child));
         // Link processed from smaller IsdAsn side (1-ff00:0:110 < 1-ff00:0:111)
@@ -287,6 +348,16 @@ mod tests {
             "attributes": ["core"],
             "isd_as": "1-ff00:0:110",
             "mtu": 1472,
+            "control_service": {
+                "cs1-ff00_0_110-1": {
+                    "addr": "127.0.0.70:31000"
+                }
+            },
+            "discovery_service": {
+                "cs1-ff00_0_110-1": {
+                    "addr": "127.0.0.70:31000"
+                }
+            },
             "border_routers": {
                 "br1": {
                     "internal_addr": "127.0.0.1:31000",

@@ -44,7 +44,9 @@ async listTopologyFiles(folder: string) : Promise<Result<string[], string>> {
 
 /** user-defined types **/
 
-export type AsInfo = { core: boolean; mtu: number | null }
+export type AsInfo = { core: boolean; mtu: number | null; control_service: ControlServiceInfo; discovery_service: DiscoveryServiceInfo }
+export type ControlServiceInfo = { addr: string; name: string }
+export type DiscoveryServiceInfo = { addr: string; name: string }
 export type Link = { a: LinkEndpoint; b: LinkEndpoint; link_type: LinkType }
 export type LinkEndpoint = { as_id: string; router_name: string; interface_id: number; underlay_local: string; underlay_remote: string }
 export type LinkType = "Core" | "Child" | "Peer"
