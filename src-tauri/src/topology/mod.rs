@@ -3,6 +3,10 @@ use scion_proto::address::IsdAsn;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
+// ── Constants ─────────────────────────────────────────────────────────────────
+
+pub const HBIRD_REDEMPTION_API_PORT: u16 = 30528;
+
 // ── IsdAsnDef ─────────────────────────────────────────────────────────────────
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -29,6 +33,16 @@ pub struct AsInfo {
     pub mtu: Option<u32>,
     pub control_service: ControlServiceInfo,
     pub discovery_service: DiscoveryServiceInfo,
+    pub hummingbird: Option<HbirdInfo>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
+pub struct HbirdInfo {
+    pub id: String,
+    pub reservation_duration: String,
+    pub min_bandwidth: u32,
+    pub max_bandwidth: u32,
+    pub addr: std::net::SocketAddr,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
@@ -110,7 +124,30 @@ pub struct RawUnderlay {
     pub remote: std::net::SocketAddr,
 }
 
-pub fn build_topology(raw_ases: Vec<RawAsTopology>) -> anyhow::Result<Topology> {
+// ── Raw types for TOML hbird.toml deserialization ─────────────────────────────
+
+#[derive(Debug, Deserialize)]
+pub struct RawHbirdConfig {
+    pub general: RawHbirdGeneral,
+    pub hummingbird: RawHbirdHummingbird,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct RawHbirdGeneral {
+    pub id: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct RawHbirdHummingbird {
+    pub reservation_duration: String,
+    pub min_bandwidth: u32,
+    pub max_bandwidth: u32,
+}
+
+pub fn build_topology(
+    raw_ases: Vec<RawAsTopology>,
+    hbird_map: HashMap<IsdAsnDef, RawHbirdConfig>,
+) -> anyhow::Result<Topology> {
     // Build interface index: (as_id, interface_id) -> (router_name, interface)
     let mut iface_index: HashMap<(IsdAsnDef, u32), (String, RawInterface)> = HashMap::new();
     for raw_as in &raw_ases {
@@ -210,6 +247,17 @@ pub fn build_topology(raw_ases: Vec<RawAsTopology>) -> anyhow::Result<Topology> 
             .next()
             .context("Discovery service entry missing")?;
 
+        let hummingbird = hbird_map.get(&raw_as.isd_as).map(|hb| HbirdInfo {
+            id: hb.general.id.clone(),
+            reservation_duration: hb.hummingbird.reservation_duration.clone(),
+            min_bandwidth: hb.hummingbird.min_bandwidth,
+            max_bandwidth: hb.hummingbird.max_bandwidth,
+            addr: std::net::SocketAddr::new(
+                control_service_info.addr.ip(),
+                HBIRD_REDEMPTION_API_PORT,
+            ),
+        });
+
         ases.insert(
             raw_as.isd_as,
             AsInfo {
@@ -223,6 +271,7 @@ pub fn build_topology(raw_ases: Vec<RawAsTopology>) -> anyhow::Result<Topology> 
                     addr: discovery_service_info.addr,
                     name: discovery_service_name.clone(),
                 },
+                hummingbird,
             },
         );
     }
@@ -299,7 +348,7 @@ mod tests {
 
     #[test]
     fn build_topology_produces_correct_ases() {
-        let topo = build_topology(make_fixture()).unwrap();
+        let topo = build_topology(make_fixture(), HashMap::new()).unwrap();
         assert_eq!(topo.ases.len(), 2);
         let as110 = topo
             .ases
@@ -318,13 +367,13 @@ mod tests {
 
     #[test]
     fn build_topology_deduplicates_to_one_link() {
-        let topo = build_topology(make_fixture()).unwrap();
+        let topo = build_topology(make_fixture(), HashMap::new()).unwrap();
         assert_eq!(topo.links.len(), 1);
     }
 
     #[test]
     fn build_topology_child_link_endpoints() {
-        let topo = build_topology(make_fixture()).unwrap();
+        let topo = build_topology(make_fixture(), HashMap::new()).unwrap();
         let link = &topo.links[0];
         assert!(matches!(link.link_type, LinkType::Child));
         // Link processed from smaller IsdAsn side (1-ff00:0:110 < 1-ff00:0:111)

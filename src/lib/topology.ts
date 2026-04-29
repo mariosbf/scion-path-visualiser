@@ -2,6 +2,7 @@ import type { Node, Edge } from "@xyflow/react";
 import type {
   ControlServiceInfo,
   DiscoveryServiceInfo,
+  HbirdInfo,
   Topology,
 } from "../bindings";
 
@@ -17,6 +18,7 @@ export interface AsNodeData extends Record<string, unknown> {
   mtu: number | null;
   control_service: ControlServiceInfo;
   discovery_service: DiscoveryServiceInfo;
+  hbird_info: HbirdInfo | null;
 }
 
 export interface RouterNodeData extends Record<string, unknown> {
@@ -73,6 +75,7 @@ export function buildGraph(topology: Topology): {
         mtu: asInfo.mtu,
         control_service: asInfo.control_service,
         discovery_service: asInfo.discovery_service,
+        hbird_info: asInfo.hummingbird,
       },
       parentId: `isd-${isd}`,
       extent: "parent",

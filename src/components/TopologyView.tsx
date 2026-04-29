@@ -160,6 +160,7 @@ function IsdDetails({ node }: { node: IsdNodeData }) {
 function AsDetails({ node }: { node: AsNodeData }) {
   return (
     <Stack gap="sm">
+      {node.core && <Badge color="orange">Core</Badge>}
       <InfoItem label="AS" value={node.asId} />
       <InfoItem
         label="Control Service"
@@ -169,8 +170,28 @@ function AsDetails({ node }: { node: AsNodeData }) {
         label="Discovery Service"
         values={[node.discovery_service.name, node.discovery_service.addr]}
       />
-      {node.core && <Badge color="orange">Core</Badge>}
       {node.mtu !== null && <InfoItem label="MTU" value={node.mtu} />}
+
+      {node.hbird_info && (
+        <>
+          <InfoItem
+            label="Hummingbird - Redemption API"
+            values={[node.hbird_info.id, node.hbird_info.addr]}
+          />
+          <InfoItem
+            label="Hummingbird - Min Bandwidth"
+            value={node.hbird_info.min_bandwidth}
+          />
+          <InfoItem
+            label="Hummingbird - Max Bandwidth"
+            value={node.hbird_info.max_bandwidth}
+          />
+          <InfoItem
+            label="Hummingbird - Reservation Duration"
+            value={node.hbird_info.reservation_duration}
+          />
+        </>
+      )}
     </Stack>
   );
 }

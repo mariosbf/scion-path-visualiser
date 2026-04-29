@@ -3872,6 +3872,7 @@ dependencies = [
  "tauri-plugin-store",
  "tauri-specta",
  "tokio",
+ "toml 0.8.2",
 ]
 
 [[package]]

@@ -1,8 +1,9 @@
 pub mod topology;
 
+use std::collections::HashMap;
 use tauri::{Emitter, Manager};
 use tauri_specta::{collect_commands, Builder};
-use topology::{build_topology, RawAsTopology, Topology};
+use topology::{build_topology, IsdAsnDef, RawAsTopology, RawHbirdConfig, Topology};
 
 #[tauri::command]
 #[specta::specta]
@@ -14,18 +15,42 @@ fn greet(name: &str) -> String {
 #[specta::specta]
 fn load_project(gen_dir: String) -> Result<Topology, String> {
     let pattern = format!("{gen_dir}/AS*/topology.json");
+    let mut hbird_map: HashMap<IsdAsnDef, RawHbirdConfig> = HashMap::new();
     let raw_ases: Vec<RawAsTopology> = glob::glob(&pattern)
         .map_err(|e| format!("Invalid glob pattern: {e}"))?
         .map(|entry| {
             let path = entry.map_err(|e| e.to_string())?;
             let content = std::fs::read_to_string(&path)
                 .map_err(|e| format!("Failed to read {}: {e}", path.display()))?;
-            serde_json::from_str::<RawAsTopology>(&content)
-                .map_err(|e| format!("Failed to parse {}: {e}", path.display()))
+            let raw_as = serde_json::from_str::<RawAsTopology>(&content)
+                .map_err(|e| format!("Failed to parse {}: {e}", path.display()))?;
+
+            if let Some(dir) = path.parent() {
+                let hbird_path = dir.join("hbird.toml");
+                if hbird_path.exists() {
+                    match std::fs::read_to_string(&hbird_path) {
+                        Ok(hbird_content) => {
+                            match toml::from_str::<RawHbirdConfig>(&hbird_content) {
+                                Ok(hb) => {
+                                    hbird_map.insert(raw_as.isd_as, hb);
+                                }
+                                Err(e) => {
+                                    eprintln!("Failed to parse {}: {e}", hbird_path.display());
+                                }
+                            }
+                        }
+                        Err(e) => {
+                            eprintln!("Failed to read {}: {e}", hbird_path.display());
+                        }
+                    }
+                }
+            }
+
+            Ok(raw_as)
         })
         .collect::<Result<Vec<_>, String>>()?;
 
-    build_topology(raw_ases).map_err(|e| format!("Failed to build topology: {e}"))
+    build_topology(raw_ases, hbird_map).map_err(|e| format!("Failed to build topology: {e}"))
 }
 
 #[tauri::command]
