@@ -352,6 +352,7 @@ function LoadingStep({
 
       await pushRecent("recent-folders", folder);
       await pushRecent("recent-topologies", topoFile);
+      session.setFolder(folder);
       session.setTopology(topoResult.data);
       navigate({ to: "/app/topology" });
     }
