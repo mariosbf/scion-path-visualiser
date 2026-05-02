@@ -1,4 +1,15 @@
-import { Badge, Button, Divider, Drawer, Group, Stack, Text } from "@mantine/core";
+import {
+  Anchor,
+  Badge,
+  Button,
+  Divider,
+  Drawer,
+  DrawerStack,
+  Group,
+  Stack,
+  Text,
+  useDrawersStack,
+} from "@mantine/core";
 import {
   Background,
   Controls,
@@ -12,7 +23,7 @@ import {
 import "@xyflow/react/dist/style.css";
 import { IconFileText } from "@tabler/icons-react";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { useNavigate } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 import type { Topology } from "../bindings";
 import { layoutGraph } from "../lib/layout";
 import type {
@@ -48,6 +59,7 @@ export function TopologyView({ topology }: Props) {
   const [nodes, setNodes, onNodesChange] = useNodesState<TopologyNode>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<TopologyEdge>([]);
   const [selected, setSelected] = useState<Selected>(null);
+  const drawersStack = useDrawersStack(["detail", "services"]);
 
   useEffect(() => {
     const { nodes: graphNodes, edges: graphEdges } = buildGraph(topology);
@@ -57,12 +69,19 @@ export function TopologyView({ topology }: Props) {
   }, [topology, setNodes, setEdges]);
 
   const onNodeClick: NodeMouseHandler<TopologyNode> = useCallback(
-    (_: React.MouseEvent, node: TopologyNode) => setSelected(node),
-    [],
+    (_: React.MouseEvent, node: TopologyNode) => {
+      setSelected(node);
+      drawersStack.open("detail");
+    },
+    [drawersStack],
   );
+
   const onEdgeClick: EdgeMouseHandler<TopologyEdge> = useCallback(
-    (_: React.MouseEvent, edge: TopologyEdge) => setSelected(edge),
-    [],
+    (_: React.MouseEvent, edge: TopologyEdge) => {
+      setSelected(edge);
+      drawersStack.open("detail");
+    },
+    [drawersStack],
   );
 
   const styledEdges = useMemo(
@@ -74,34 +93,64 @@ export function TopologyView({ topology }: Props) {
     [edges],
   );
 
+  const closeAll = useCallback(() => {
+    drawersStack.closeAll();
+    setSelected(null);
+  }, [drawersStack]);
+
+  const selectedAsNode =
+    selected?.type === "as" ? (selected as TopologyNode) : null;
+
   return (
-    <div style={{ width: "100%", height: "100%", position: "relative" }}>
-      <ReactFlow
-        nodes={nodes}
-        edges={styledEdges}
-        nodeTypes={nodeTypes}
-        onNodesChange={onNodesChange}
-        onEdgesChange={onEdgesChange}
-        onNodeClick={onNodeClick}
-        onEdgeClick={onEdgeClick}
-        onPaneClick={() => setSelected(null)}
-        fitView
-      >
-        <Background />
-        <Controls />
-      </ReactFlow>
+    <DrawerStack>
+      <div style={{ width: "100%", height: "100%", position: "relative" }}>
+        <ReactFlow
+          nodes={nodes}
+          edges={styledEdges}
+          nodeTypes={nodeTypes}
+          onNodesChange={onNodesChange}
+          onEdgesChange={onEdgesChange}
+          onNodeClick={onNodeClick}
+          onEdgeClick={onEdgeClick}
+          onPaneClick={closeAll}
+          fitView
+        >
+          <Background />
+          <Controls />
+        </ReactFlow>
+      </div>
 
       <Drawer
-        opened={selected !== null}
-        onClose={() => setSelected(null)}
+        {...drawersStack.register("detail")}
         position="right"
         size="md"
         title="Details"
         styles={{ body: { paddingTop: 8 } }}
       >
-        {selected && <DetailsPanel element={selected} />}
+        {selected && (
+          <DetailsPanel
+            element={selected}
+            onViewServices={() => drawersStack.open("services")}
+          />
+        )}
       </Drawer>
-    </div>
+
+      <Drawer
+        {...drawersStack.register("services")}
+        position="right"
+        size="md"
+        title={
+          selectedAsNode
+            ? `Services — ${(selectedAsNode.data as AsNodeData).asId}`
+            : "Services"
+        }
+        styles={{ body: { paddingTop: 8 } }}
+      >
+        {selectedAsNode && (
+          <ServicesPanel node={selectedAsNode.data as AsNodeData} />
+        )}
+      </Drawer>
+    </DrawerStack>
   );
 }
 
@@ -172,21 +221,75 @@ function IsdDetails({ node }: { node: IsdNodeData }) {
   );
 }
 
-function AsDetails({ node }: { node: AsNodeData }) {
+function ServicesPanel({ node }: { node: AsNodeData }) {
+  return (
+    <Stack gap="md">
+      <Stack gap={4}>
+        <Text c="dimmed" size="sm">Control Service</Text>
+        <Anchor
+          component={Link as any}
+          to="/app/logs/$serviceName"
+          params={{ serviceName: node.control_service.name }}
+          ff="monospace"
+          size="sm"
+        >
+          {node.control_service.name}
+        </Anchor>
+      </Stack>
+      <Divider />
+      <Stack gap={4}>
+        <Text c="dimmed" size="sm">SCION Daemon</Text>
+        <Anchor
+          component={Link as any}
+          to="/app/logs/$serviceName"
+          params={{ serviceName: node.daemon_info.id }}
+          ff="monospace"
+          size="sm"
+        >
+          {node.daemon_info.id}
+        </Anchor>
+      </Stack>
+      {node.hbird_info && (
+        <>
+          <Divider />
+          <Stack gap={4}>
+            <Text c="dimmed" size="sm">Hummingbird</Text>
+            <Anchor
+              component={Link as any}
+              to="/app/logs/$serviceName"
+              params={{ serviceName: node.hbird_info.id }}
+              ff="monospace"
+              size="sm"
+            >
+              {node.hbird_info.id}
+            </Anchor>
+          </Stack>
+        </>
+      )}
+    </Stack>
+  );
+}
+
+function AsDetails({
+  node,
+  onViewServices,
+}: {
+  node: AsNodeData;
+  onViewServices: () => void;
+}) {
   return (
     <Stack gap="sm">
       {node.core && <Badge color="orange">Core</Badge>}
       <InfoItem label="AS" value={node.asId} />
       <InfoItem
         label="Control Service"
-        values={[node.control_service.name, node.discovery_service.addr]}
+        values={[node.control_service.name, node.control_service.addr]}
       />
       <InfoItem
         label="Discovery Service"
         values={[node.discovery_service.name, node.discovery_service.addr]}
       />
       {node.mtu !== null && <InfoItem label="MTU" value={node.mtu} />}
-
       {node.hbird_info && (
         <>
           <InfoItem
@@ -207,6 +310,9 @@ function AsDetails({ node }: { node: AsNodeData }) {
           />
         </>
       )}
+      <Button variant="light" onClick={onViewServices}>
+        View Services
+      </Button>
     </Stack>
   );
 }
@@ -231,8 +337,13 @@ function EdgeDetails({ edge }: { edge: TopologyEdge }) {
   );
 }
 
-function DetailsPanel({ element }: { element: TopologyNode | TopologyEdge }) {
-  // Router node details
+function DetailsPanel({
+  element,
+  onViewServices,
+}: {
+  element: TopologyNode | TopologyEdge;
+  onViewServices: () => void;
+}) {
   if (element.type === "router") {
     const node = element as TopologyNode;
     return <RouterDetails node={node.data as RouterNodeData} />;
@@ -241,7 +352,12 @@ function DetailsPanel({ element }: { element: TopologyNode | TopologyEdge }) {
     return <IsdDetails node={node.data as IsdNodeData} />;
   } else if (element.type === "as") {
     const node = element as TopologyNode;
-    return <AsDetails node={node.data as AsNodeData} />;
+    return (
+      <AsDetails
+        node={node.data as AsNodeData}
+        onViewServices={onViewServices}
+      />
+    );
   } else {
     const edge = element as TopologyEdge;
     return <EdgeDetails edge={edge} />;
