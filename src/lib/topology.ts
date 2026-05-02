@@ -3,6 +3,7 @@ import type {
   ControlServiceInfo,
   DiscoveryServiceInfo,
   HbirdInfo,
+  ScionDaemonInfo,
   Topology,
 } from "../bindings";
 
@@ -19,6 +20,7 @@ export interface AsNodeData extends Record<string, unknown> {
   control_service: ControlServiceInfo;
   discovery_service: DiscoveryServiceInfo;
   hbird_info: HbirdInfo | null;
+  daemon_info: ScionDaemonInfo;
 }
 
 export interface RouterNodeData extends Record<string, unknown> {
@@ -76,6 +78,7 @@ export function buildGraph(topology: Topology): {
         control_service: asInfo.control_service,
         discovery_service: asInfo.discovery_service,
         hbird_info: asInfo.hummingbird,
+        daemon_info: asInfo.daemon,
       },
       parentId: `isd-${isd}`,
       extent: "parent",
