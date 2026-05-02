@@ -8,7 +8,7 @@ import {
 import { SetupWizard } from "./routes/setup";
 import { AppLayout } from "./routes/app";
 import { TopologyRoute } from "./routes/app/topology";
-import { RouterLogsRoute } from "./routes/app/logs";
+import { ServiceLogsRoute } from "./routes/app/logs";
 import { session } from "./lib/session";
 
 const rootRoute = createRootRoute({ component: () => <Outlet /> });
@@ -52,16 +52,16 @@ const topologyRoute = createRoute({
   component: TopologyRoute,
 });
 
-const routerLogsRoute = createRoute({
+const serviceLogsRoute = createRoute({
   getParentRoute: () => appRoute,
-  path: "/logs/$routerName",
-  component: RouterLogsRoute,
+  path: "/logs/$serviceName",
+  component: ServiceLogsRoute,
 });
 
 const routeTree = rootRoute.addChildren([
   indexRoute,
   setupRoute,
-  appRoute.addChildren([appIndexRoute, topologyRoute, routerLogsRoute]),
+  appRoute.addChildren([appIndexRoute, topologyRoute, serviceLogsRoute]),
 ]);
 
 export const router = createRouter({ routeTree });

@@ -153,8 +153,8 @@ function RouterDetails({ node }: { node: RouterNodeData }) {
         leftSection={<IconFileText size={14} />}
         onClick={() =>
           navigate({
-            to: "/app/logs/$routerName",
-            params: { routerName: node.routerName },
+            to: "/app/logs/$serviceName",
+            params: { serviceName: node.routerName },
           })
         }
       >

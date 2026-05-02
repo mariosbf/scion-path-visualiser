@@ -19,9 +19,9 @@ interface LogOutputPayload {
   line: string;
 }
 
-export function RouterLogsRoute() {
+export function ServiceLogsRoute() {
   const navigate = useNavigate();
-  const { routerName } = useParams({ from: "/app/logs/$routerName" });
+  const { serviceName } = useParams({ from: "/app/logs/$serviceName" });
   const folder = session.getFolder();
   const topology = session.getTopology();
 
@@ -35,12 +35,12 @@ export function RouterLogsRoute() {
   let interfaceId: number | null = null;
   if (topology) {
     for (const link of topology.links) {
-      if (link.a.router_name === routerName) {
+      if (link.a.router_name === serviceName) {
         asId = link.a.as_id;
         interfaceId = link.a.interface_id;
         break;
       }
-      if (link.b.router_name === routerName) {
+      if (link.b.router_name === serviceName) {
         asId = link.b.as_id;
         interfaceId = link.b.interface_id;
         break;
@@ -70,7 +70,7 @@ export function RouterLogsRoute() {
       }
       unlisten = unlistenFn;
 
-      const result = await commands.startLogStream(folder!, routerName);
+      const result = await commands.startLogStream(folder!, serviceName);
       if (result.status === "error") {
         if (!cancelled) setError(result.error);
         return;
@@ -97,7 +97,7 @@ export function RouterLogsRoute() {
         streamIdRef.current = null;
       }
     };
-  }, [folder, routerName, navigate]);
+  }, [folder, serviceName, navigate]);
 
   return (
     <Stack gap={0} style={{ height: "100%" }}>
@@ -116,7 +116,7 @@ export function RouterLogsRoute() {
           <IconArrowLeft size={16} />
         </ActionIcon>
         <Text fw={600} ff="monospace" size="sm">
-          {routerName}
+          {serviceName}
         </Text>
         <Text size="sm" c="dimmed">
           Logs
@@ -164,7 +164,7 @@ export function RouterLogsRoute() {
         <Text size="xs" c="dimmed">
           logs/
           <Text span size="xs" ff="monospace">
-            {routerName}.log
+            {serviceName}.log
           </Text>
         </Text>
       </Group>
