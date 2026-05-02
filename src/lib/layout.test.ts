@@ -3,10 +3,19 @@ import { layoutGraph } from "./layout";
 import { buildGraph } from "./topology";
 import type { Topology } from "../bindings";
 
+const stubAs = (core: boolean) => ({
+  core,
+  mtu: 1472,
+  control_service: { addr: "127.0.0.1:31000", name: "cs1" },
+  discovery_service: { addr: "127.0.0.1:31000", name: "cs1" },
+  hummingbird: null,
+  daemon: { id: "sd1" },
+});
+
 const twoAsTopology: Topology = {
   ases: {
-    "1-ff00:0:110": { core: true, mtu: 1472 },
-    "1-ff00:0:111": { core: false, mtu: 1472 },
+    "1-ff00:0:110": stubAs(true),
+    "1-ff00:0:111": stubAs(false),
   },
   links: [
     {
@@ -19,8 +28,8 @@ const twoAsTopology: Topology = {
 
 const twoIsdTopology: Topology = {
   ases: {
-    "1-ff00:0:110": { core: true, mtu: 1472 },
-    "2-ff00:0:210": { core: true, mtu: 1472 },
+    "1-ff00:0:110": stubAs(true),
+    "2-ff00:0:210": stubAs(true),
   },
   links: [
     {

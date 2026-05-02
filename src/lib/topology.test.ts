@@ -2,10 +2,19 @@ import { describe, it, expect } from "vitest";
 import { buildGraph } from "./topology";
 import type { Topology } from "../bindings";
 
+const stubAs = (core: boolean) => ({
+  core,
+  mtu: 1472,
+  control_service: { addr: "127.0.0.1:31000", name: "cs1" },
+  discovery_service: { addr: "127.0.0.1:31000", name: "cs1" },
+  hummingbird: null,
+  daemon: { id: "sd1" },
+});
+
 const tinyTopology: Topology = {
   ases: {
-    "1-ff00:0:110": { core: true, mtu: 1472 },
-    "1-ff00:0:111": { core: false, mtu: 1472 },
+    "1-ff00:0:110": stubAs(true),
+    "1-ff00:0:111": stubAs(false),
   },
   links: [
     {
@@ -61,9 +70,9 @@ describe("buildGraph", () => {
   it("deduplicates router nodes appearing in multiple links", () => {
     const multiLink: Topology = {
       ases: {
-        "1-ff00:0:110": { core: true, mtu: 1472 },
-        "1-ff00:0:111": { core: false, mtu: 1472 },
-        "1-ff00:0:112": { core: false, mtu: 1472 },
+        "1-ff00:0:110": stubAs(true),
+        "1-ff00:0:111": stubAs(false),
+        "1-ff00:0:112": stubAs(false),
       },
       links: [
         {
