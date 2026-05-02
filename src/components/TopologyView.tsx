@@ -98,8 +98,10 @@ export function TopologyView({ topology }: Props) {
     setSelected(null);
   }, [drawersStack]);
 
-  const selectedAsNode =
-    selected?.type === "as" ? (selected as TopologyNode) : null;
+  const selectedAsNode = useMemo(
+    () => (selected?.type === "as" ? (selected as TopologyNode) : null),
+    [selected],
+  );
 
   return (
     <DrawerStack>
@@ -226,6 +228,7 @@ function ServicesPanel({ node }: { node: AsNodeData }) {
     <Stack gap="md">
       <Stack gap={4}>
         <Text c="dimmed" size="sm">Control Service</Text>
+        {/* Link as any: TanStack Router Link doesn't satisfy Mantine's React.ElementType constraint */}
         <Anchor
           component={Link as any}
           to="/app/logs/$serviceName"
@@ -342,7 +345,7 @@ function DetailsPanel({
   onViewServices,
 }: {
   element: TopologyNode | TopologyEdge;
-  onViewServices: () => void;
+  onViewServices?: () => void;
 }) {
   if (element.type === "router") {
     const node = element as TopologyNode;
@@ -355,7 +358,7 @@ function DetailsPanel({
     return (
       <AsDetails
         node={node.data as AsNodeData}
-        onViewServices={onViewServices}
+        onViewServices={onViewServices!}
       />
     );
   } else {
