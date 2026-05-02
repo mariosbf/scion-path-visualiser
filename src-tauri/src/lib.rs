@@ -43,6 +43,8 @@ fn load_project(gen_dir: String) -> Result<Topology, String> {
                     }
                 }
 
+                // sd.toml is required (unlike hbird.toml which is optional):
+                // absence defers to build_topology error; read/parse failure is immediate.
                 let sd_path = dir.join("sd.toml");
                 if sd_path.exists() {
                     let sd_content = std::fs::read_to_string(&sd_path)
@@ -104,14 +106,14 @@ async fn start_log_stream(
     app: tauri::AppHandle,
     state: tauri::State<'_, LogStreams>,
     folder: String,
-    router_name: String,
+    service_name: String,
 ) -> Result<String, String> {
     use std::process::Stdio;
     use tokio::io::{AsyncBufReadExt, BufReader};
 
     let log_path = std::path::Path::new(&folder)
         .join("logs")
-        .join(format!("{router_name}.log"));
+        .join(format!("{service_name}.log"));
 
     if !log_path.exists() {
         return Err(format!("Log file not found: {}", log_path.display()));

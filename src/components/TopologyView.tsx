@@ -124,6 +124,10 @@ export function TopologyView({ topology }: Props) {
 
       <Drawer
         {...drawersStack.register("detail")}
+        onClose={() => {
+          drawersStack.close("detail");
+          setSelected(null);
+        }}
         position="right"
         size="md"
         title="Details"

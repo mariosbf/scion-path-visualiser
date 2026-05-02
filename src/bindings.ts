@@ -29,9 +29,9 @@ async listTopologyFiles(folder: string) : Promise<Result<string[], string>> {
     else return { status: "error", error: e  as any };
 }
 },
-async startLogStream(folder: string, routerName: string) : Promise<Result<string, string>> {
+async startLogStream(folder: string, serviceName: string) : Promise<Result<string, string>> {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("start_log_stream", { folder, routerName }) };
+    return { status: "ok", data: await TAURI_INVOKE("start_log_stream", { folder, serviceName }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
