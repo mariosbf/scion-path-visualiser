@@ -34,6 +34,7 @@ pub struct AsInfo {
     pub control_service: ControlServiceInfo,
     pub discovery_service: DiscoveryServiceInfo,
     pub hummingbird: Option<HbirdInfo>,
+    pub daemon: ScionDaemonInfo,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
@@ -43,6 +44,11 @@ pub struct HbirdInfo {
     pub min_bandwidth: u32,
     pub max_bandwidth: u32,
     pub addr: std::net::SocketAddr,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
+pub struct ScionDaemonInfo {
+    pub id: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
@@ -144,9 +150,22 @@ pub struct RawHbirdHummingbird {
     pub max_bandwidth: u32,
 }
 
+// ── Raw types for TOML sd.toml deserialization ────────────────────────────────
+
+#[derive(Debug, Deserialize)]
+pub struct RawSdConfig {
+    pub general: RawSdGeneral,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct RawSdGeneral {
+    pub id: String,
+}
+
 pub fn build_topology(
     raw_ases: Vec<RawAsTopology>,
     hbird_map: HashMap<IsdAsnDef, RawHbirdConfig>,
+    sd_map: HashMap<IsdAsnDef, RawSdConfig>,
 ) -> anyhow::Result<Topology> {
     // Build interface index: (as_id, interface_id) -> (router_name, interface)
     let mut iface_index: HashMap<(IsdAsnDef, u32), (String, RawInterface)> = HashMap::new();
@@ -258,6 +277,18 @@ pub fn build_topology(
             ),
         });
 
+        let daemon = sd_map
+            .get(&raw_as.isd_as)
+            .map(|sd| ScionDaemonInfo {
+                id: sd.general.id.clone(),
+            })
+            .with_context(|| {
+                format!(
+                    "sd.toml missing for AS {} — cannot determine daemon service name",
+                    raw_as.isd_as.0
+                )
+            })?;
+
         ases.insert(
             raw_as.isd_as,
             AsInfo {
@@ -272,6 +303,7 @@ pub fn build_topology(
                     name: discovery_service_name.clone(),
                 },
                 hummingbird,
+                daemon,
             },
         );
     }
@@ -348,7 +380,7 @@ mod tests {
 
     #[test]
     fn build_topology_produces_correct_ases() {
-        let topo = build_topology(make_fixture(), HashMap::new()).unwrap();
+        let topo = build_topology(make_fixture(), HashMap::new(), make_sd_fixture()).unwrap();
         assert_eq!(topo.ases.len(), 2);
         let as110 = topo
             .ases
@@ -367,13 +399,13 @@ mod tests {
 
     #[test]
     fn build_topology_deduplicates_to_one_link() {
-        let topo = build_topology(make_fixture(), HashMap::new()).unwrap();
+        let topo = build_topology(make_fixture(), HashMap::new(), make_sd_fixture()).unwrap();
         assert_eq!(topo.links.len(), 1);
     }
 
     #[test]
     fn build_topology_child_link_endpoints() {
-        let topo = build_topology(make_fixture(), HashMap::new()).unwrap();
+        let topo = build_topology(make_fixture(), HashMap::new(), make_sd_fixture()).unwrap();
         let link = &topo.links[0];
         assert!(matches!(link.link_type, LinkType::Child));
         // Link processed from smaller IsdAsn side (1-ff00:0:110 < 1-ff00:0:111)
@@ -425,5 +457,53 @@ mod tests {
         assert!(raw.attributes.contains(&"core".to_string()));
         assert_eq!(raw.mtu, Some(1472));
         assert!(raw.border_routers.contains_key("br1"));
+    }
+
+    fn make_sd_fixture() -> HashMap<IsdAsnDef, RawSdConfig> {
+        let mut sd_map = HashMap::new();
+        let ia110: IsdAsnDef = serde_json::from_str(r#""1-ff00:0:110""#).unwrap();
+        let ia111: IsdAsnDef = serde_json::from_str(r#""1-ff00:0:111""#).unwrap();
+        sd_map.insert(
+            ia110,
+            RawSdConfig {
+                general: RawSdGeneral {
+                    id: "sd1-ff00_0_110".to_string(),
+                },
+            },
+        );
+        sd_map.insert(
+            ia111,
+            RawSdConfig {
+                general: RawSdGeneral {
+                    id: "sd1-ff00_0_111".to_string(),
+                },
+            },
+        );
+        sd_map
+    }
+
+    #[test]
+    fn build_topology_includes_daemon_info() {
+        let topo = build_topology(make_fixture(), HashMap::new(), make_sd_fixture()).unwrap();
+        let as110 = topo
+            .ases
+            .iter()
+            .find(|(k, _)| k.0.to_string() == "1-ff00:0:110")
+            .unwrap();
+        assert_eq!(as110.1.daemon.id, "sd1-ff00_0_110");
+        let as111 = topo
+            .ases
+            .iter()
+            .find(|(k, _)| k.0.to_string() == "1-ff00:0:111")
+            .unwrap();
+        assert_eq!(as111.1.daemon.id, "sd1-ff00_0_111");
+    }
+
+    #[test]
+    fn build_topology_errors_on_missing_daemon() {
+        let result = build_topology(make_fixture(), HashMap::new(), HashMap::new());
+        assert!(result.is_err());
+        let msg = result.unwrap_err().to_string();
+        assert!(msg.contains("sd.toml"), "error should mention sd.toml, got: {msg}");
     }
 }

@@ -57,13 +57,14 @@ async stopLogStream(streamId: string) : Promise<Result<null, string>> {
 
 /** user-defined types **/
 
-export type AsInfo = { core: boolean; mtu: number | null; control_service: ControlServiceInfo; discovery_service: DiscoveryServiceInfo; hummingbird: HbirdInfo | null }
+export type AsInfo = { core: boolean; mtu: number | null; control_service: ControlServiceInfo; discovery_service: DiscoveryServiceInfo; hummingbird: HbirdInfo | null; daemon: ScionDaemonInfo }
 export type ControlServiceInfo = { addr: string; name: string }
 export type DiscoveryServiceInfo = { addr: string; name: string }
 export type HbirdInfo = { id: string; reservation_duration: string; min_bandwidth: number; max_bandwidth: number; addr: string }
 export type Link = { a: LinkEndpoint; b: LinkEndpoint; link_type: LinkType }
 export type LinkEndpoint = { as_id: string; router_name: string; interface_id: number; underlay_local: string; underlay_remote: string }
 export type LinkType = "Core" | "Child" | "Peer"
+export type ScionDaemonInfo = { id: string }
 export type Topology = { ases: { [key in string]: AsInfo }; links: Link[] }
 
 /** tauri-specta globals **/

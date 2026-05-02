@@ -4,7 +4,7 @@ use std::collections::HashMap;
 use std::sync::Mutex;
 use tauri::{Emitter, Manager};
 use tauri_specta::{collect_commands, Builder};
-use topology::{build_topology, IsdAsnDef, RawAsTopology, RawHbirdConfig, Topology};
+use topology::{build_topology, IsdAsnDef, RawAsTopology, RawHbirdConfig, RawSdConfig, Topology};
 
 struct LogStreams(Mutex<HashMap<String, tokio::process::Child>>);
 
@@ -13,6 +13,7 @@ struct LogStreams(Mutex<HashMap<String, tokio::process::Child>>);
 fn load_project(gen_dir: String) -> Result<Topology, String> {
     let pattern = format!("{gen_dir}/AS*/topology.json");
     let mut hbird_map: HashMap<IsdAsnDef, RawHbirdConfig> = HashMap::new();
+    let mut sd_map: HashMap<IsdAsnDef, RawSdConfig> = HashMap::new();
     let raw_ases: Vec<RawAsTopology> = glob::glob(&pattern)
         .map_err(|e| format!("Invalid glob pattern: {e}"))?
         .map(|entry| {
@@ -41,13 +42,32 @@ fn load_project(gen_dir: String) -> Result<Topology, String> {
                         }
                     }
                 }
+
+                let sd_path = dir.join("sd.toml");
+                if sd_path.exists() {
+                    match std::fs::read_to_string(&sd_path) {
+                        Ok(sd_content) => {
+                            match toml::from_str::<RawSdConfig>(&sd_content) {
+                                Ok(sd) => {
+                                    sd_map.insert(raw_as.isd_as, sd);
+                                }
+                                Err(e) => {
+                                    eprintln!("Failed to parse {}: {e}", sd_path.display());
+                                }
+                            }
+                        }
+                        Err(e) => {
+                            eprintln!("Failed to read {}: {e}", sd_path.display());
+                        }
+                    }
+                }
             }
 
             Ok(raw_as)
         })
         .collect::<Result<Vec<_>, String>>()?;
 
-    build_topology(raw_ases, hbird_map).map_err(|e| format!("Failed to build topology: {e}"))
+    build_topology(raw_ases, hbird_map, sd_map).map_err(|e| format!("Failed to build topology: {e}"))
 }
 
 async fn stream_output(
