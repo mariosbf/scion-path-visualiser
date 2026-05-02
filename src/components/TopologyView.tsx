@@ -1,5 +1,4 @@
 import {
-  Anchor,
   Badge,
   Button,
   Divider,
@@ -23,7 +22,7 @@ import {
 import "@xyflow/react/dist/style.css";
 import { IconFileText } from "@tabler/icons-react";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { Link, useNavigate } from "@tanstack/react-router";
+import { useNavigate } from "@tanstack/react-router";
 import type { Topology } from "../bindings";
 import { layoutGraph } from "../lib/layout";
 import type {
@@ -202,57 +201,6 @@ function IsdDetails({ node }: { node: IsdNodeData }) {
   return (
     <Stack gap="sm">
       <InfoItem label="ISD" value={node.isd} />
-    </Stack>
-  );
-}
-
-// @ts-expect-error - ServicesPanel will be used in Task 3 when ServiceDrawerContent is added
-function ServicesPanel({ node }: { node: AsNodeData }) {
-  return (
-    <Stack gap="md">
-      <Stack gap={4}>
-        <Text c="dimmed" size="sm">Control Service</Text>
-        {/* Link as any: TanStack Router Link doesn't satisfy Mantine's React.ElementType constraint */}
-        <Anchor
-          component={Link as any}
-          to="/app/logs/$serviceName"
-          params={{ serviceName: node.control_service.name }}
-          ff="monospace"
-          size="sm"
-        >
-          {node.control_service.name}
-        </Anchor>
-      </Stack>
-      <Divider />
-      <Stack gap={4}>
-        <Text c="dimmed" size="sm">SCION Daemon</Text>
-        <Anchor
-          component={Link as any}
-          to="/app/logs/$serviceName"
-          params={{ serviceName: node.daemon_info.id }}
-          ff="monospace"
-          size="sm"
-        >
-          {node.daemon_info.id}
-        </Anchor>
-      </Stack>
-      {node.hbird_info && (
-        <>
-          <Divider />
-          <Stack gap={4}>
-            <Text c="dimmed" size="sm">Hummingbird</Text>
-            <Anchor
-              component={Link as any}
-              to="/app/logs/$serviceName"
-              params={{ serviceName: node.hbird_info.id }}
-              ff="monospace"
-              size="sm"
-            >
-              {node.hbird_info.id}
-            </Anchor>
-          </Stack>
-        </>
-      )}
     </Stack>
   );
 }
