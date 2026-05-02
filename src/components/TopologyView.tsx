@@ -97,6 +97,11 @@ export function TopologyView({ topology }: Props) {
     setSelected(null);
   }, [drawersStack]);
 
+  const selectedAsNode = useMemo(
+    () => (selected?.type === "as" ? (selected as TopologyNode) : null),
+    [selected],
+  );
+
   return (
     <DrawerStack>
       <div style={{ width: "100%", height: "100%", position: "relative" }}>
@@ -131,6 +136,85 @@ export function TopologyView({ topology }: Props) {
           <DetailsPanel
             element={selected}
             onViewService={(id) => drawersStack.open(id)}
+          />
+        )}
+      </Drawer>
+
+      <Drawer
+        {...drawersStack.register("service-control")}
+        position="right"
+        size="md"
+        title={
+          selectedAsNode
+            ? `Control Service — ${(selectedAsNode.data as AsNodeData).control_service.name}`
+            : "Control Service"
+        }
+        styles={{ body: { paddingTop: 8 } }}
+      >
+        {selectedAsNode && (
+          <ServiceDrawerContent
+            fields={[
+              {
+                label: "Address",
+                value: (selectedAsNode.data as AsNodeData).control_service.addr,
+              },
+            ]}
+            logsServiceName={(selectedAsNode.data as AsNodeData).control_service.name}
+          />
+        )}
+      </Drawer>
+
+      <Drawer
+        {...drawersStack.register("service-daemon")}
+        position="right"
+        size="md"
+        title={
+          selectedAsNode
+            ? `SCION Daemon — ${(selectedAsNode.data as AsNodeData).daemon_info.id}`
+            : "SCION Daemon"
+        }
+        styles={{ body: { paddingTop: 8 } }}
+      >
+        {selectedAsNode && (
+          <ServiceDrawerContent
+            fields={[]}
+            logsServiceName={(selectedAsNode.data as AsNodeData).daemon_info.id}
+          />
+        )}
+      </Drawer>
+
+      <Drawer
+        {...drawersStack.register("service-hbird")}
+        position="right"
+        size="md"
+        title={
+          selectedAsNode && (selectedAsNode.data as AsNodeData).hbird_info
+            ? `Hummingbird — ${(selectedAsNode.data as AsNodeData).hbird_info!.id}`
+            : "Hummingbird"
+        }
+        styles={{ body: { paddingTop: 8 } }}
+      >
+        {selectedAsNode && (selectedAsNode.data as AsNodeData).hbird_info && (
+          <ServiceDrawerContent
+            fields={[
+              {
+                label: "Address",
+                value: (selectedAsNode.data as AsNodeData).hbird_info!.addr,
+              },
+              {
+                label: "Min Bandwidth",
+                value: (selectedAsNode.data as AsNodeData).hbird_info!.min_bandwidth,
+              },
+              {
+                label: "Max Bandwidth",
+                value: (selectedAsNode.data as AsNodeData).hbird_info!.max_bandwidth,
+              },
+              {
+                label: "Reservation Duration",
+                value: (selectedAsNode.data as AsNodeData).hbird_info!.reservation_duration,
+              },
+            ]}
+            logsServiceName={(selectedAsNode.data as AsNodeData).hbird_info!.id}
           />
         )}
       </Drawer>
@@ -188,6 +272,34 @@ function RouterDetails({ node }: { node: RouterNodeData }) {
           navigate({
             to: "/app/logs/$serviceName",
             params: { serviceName: node.routerName },
+          })
+        }
+      >
+        View Logs
+      </Button>
+    </Stack>
+  );
+}
+
+interface ServiceDrawerProps {
+  fields: { label: string; value: string | number }[];
+  logsServiceName: string;
+}
+
+function ServiceDrawerContent({ fields, logsServiceName }: ServiceDrawerProps) {
+  const navigate = useNavigate();
+  return (
+    <Stack gap="sm">
+      {fields.map((f) => (
+        <InfoItem key={f.label} label={f.label} value={f.value} />
+      ))}
+      <Button
+        variant="light"
+        leftSection={<IconFileText size={14} />}
+        onClick={() =>
+          navigate({
+            to: "/app/logs/$serviceName",
+            params: { serviceName: logsServiceName },
           })
         }
       >
