@@ -45,21 +45,11 @@ fn load_project(gen_dir: String) -> Result<Topology, String> {
 
                 let sd_path = dir.join("sd.toml");
                 if sd_path.exists() {
-                    match std::fs::read_to_string(&sd_path) {
-                        Ok(sd_content) => {
-                            match toml::from_str::<RawSdConfig>(&sd_content) {
-                                Ok(sd) => {
-                                    sd_map.insert(raw_as.isd_as, sd);
-                                }
-                                Err(e) => {
-                                    eprintln!("Failed to parse {}: {e}", sd_path.display());
-                                }
-                            }
-                        }
-                        Err(e) => {
-                            eprintln!("Failed to read {}: {e}", sd_path.display());
-                        }
-                    }
+                    let sd_content = std::fs::read_to_string(&sd_path)
+                        .map_err(|e| format!("Failed to read {}: {e}", sd_path.display()))?;
+                    let sd = toml::from_str::<RawSdConfig>(&sd_content)
+                        .map_err(|e| format!("Failed to parse {}: {e}", sd_path.display()))?;
+                    sd_map.insert(raw_as.isd_as, sd);
                 }
             }
 
