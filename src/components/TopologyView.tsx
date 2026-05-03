@@ -1,4 +1,5 @@
 import {
+  Anchor,
   Badge,
   Button,
   Divider,
@@ -177,7 +178,8 @@ export function TopologyView({ topology }: Props) {
       >
         {selectedAsNode && (
           <ServiceDrawerContent
-            fields={[]}
+            fields={[
+            ]}
             logsServiceName={(selectedAsNode.data as AsNodeData).daemon_info.id}
           />
         )}
@@ -328,48 +330,37 @@ function AsDetails({
 }) {
   return (
     <Stack gap="sm">
-      {node.core && <Badge color="orange">Core</Badge>}
-      <InfoItem label="AS" value={node.asId} />
-      <InfoItem
-        label="Control Service"
-        values={[node.control_service.name, node.control_service.addr]}
-      />
+      <InfoItem label="ISD-AS " value={node.asId} />
+      {node.mtu !== null && <InfoItem label="MTU" value={node.mtu} />}
+
+      <Stack>
+        <Text c="dimmed">Type</Text>
+        {node.core && <Badge color="orange">Core</Badge>}
+      </Stack>
+      <Divider />
+
+      <Stack gap={4}>
+        <Text c="dimmed">Services</Text>
+        <Stack gap={4}>
+          <Anchor href="#" onClick={() => onViewService("service-control")}>
+            Control service ({node.control_service.name})
+          </Anchor>
+          <Anchor href="#" onClick={() => onViewService("service-daemon")}>
+            SCION Daemon ({node.daemon_info.id})
+          </Anchor>
+          {node.hbird_info && (
+            <Anchor href="#" onClick={() => onViewService("service-hbird")}>
+              Hummingbird ({node.hbird_info.id})
+            </Anchor>
+          )}
+        </Stack>
+      </Stack>
+      <Divider />
+
       <InfoItem
         label="Discovery Service"
         values={[node.discovery_service.name, node.discovery_service.addr]}
       />
-      {node.mtu !== null && <InfoItem label="MTU" value={node.mtu} />}
-      {node.hbird_info && (
-        <>
-          <InfoItem
-            label="Hummingbird - Redemption API"
-            values={[node.hbird_info.id, node.hbird_info.addr]}
-          />
-          <InfoItem
-            label="Hummingbird - Min Bandwidth"
-            value={node.hbird_info.min_bandwidth}
-          />
-          <InfoItem
-            label="Hummingbird - Max Bandwidth"
-            value={node.hbird_info.max_bandwidth}
-          />
-          <InfoItem
-            label="Hummingbird - Reservation Duration"
-            value={node.hbird_info.reservation_duration}
-          />
-        </>
-      )}
-      <Button variant="light" onClick={() => onViewService("service-control")}>
-        {node.control_service.name}
-      </Button>
-      <Button variant="light" onClick={() => onViewService("service-daemon")}>
-        {node.daemon_info.id}
-      </Button>
-      {node.hbird_info && (
-        <Button variant="light" onClick={() => onViewService("service-hbird")}>
-          {node.hbird_info.id}
-        </Button>
-      )}
     </Stack>
   );
 }
@@ -379,17 +370,22 @@ function EdgeDetails({ edge }: { edge: TopologyEdge }) {
     <Stack gap="sm">
       <InfoItem label="Source" value={edge.source} />
       <InfoItem label="Target" value={edge.target} />
-      <Badge
-        color={
-          edge.data?.linkType === "Core"
-            ? "orange"
-            : edge.data?.linkType === "Child"
-              ? "green"
-              : "blue"
-        }
-      >
-        {edge.data?.linkType}
-      </Badge>
+
+      <Stack>
+        <Text c="dimmed">Link Type</Text>
+        <Badge
+          color={
+            edge.data?.linkType === "Core"
+              ? "orange"
+              : edge.data?.linkType === "Child"
+                ? "green"
+                : "blue"
+          }
+        >
+          {edge.data?.linkType}
+        </Badge>
+      </Stack>
+      <Divider />
     </Stack>
   );
 }
