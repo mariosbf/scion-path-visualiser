@@ -59,8 +59,9 @@ export function TopologyView({ topology }: Props) {
   const [nodes, setNodes, onNodesChange] = useNodesState<TopologyNode>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<TopologyEdge>([]);
   const [selected, setSelected] = useState<Selected>(null);
-  const drawersStack = useDrawersStack(["detail", "service-control", "service-daemon", "service-hbird", "router-detail"]);
+  const drawersStack = useDrawersStack(["detail", "service-control", "service-daemon", "service-hbird", "router-detail", "as-detail"]);
   const [selectedRouter, setSelectedRouter] = useState<RouterNodeData | null>(null);
+  const [selectedAs, setSelectedAs] = useState<AsNodeData | null>(null);
 
   useEffect(() => {
     const { nodes: graphNodes, edges: graphEdges } = buildGraph(topology);
@@ -104,6 +105,11 @@ export function TopologyView({ topology }: Props) {
     [selected],
   );
 
+  const activeAsData = useMemo(
+    () => (selectedAsNode?.data as AsNodeData | undefined) ?? selectedAs ?? null,
+    [selectedAsNode, selectedAs],
+  );
+
   const selectedAsRouters = useMemo(
     () =>
       selectedAsNode
@@ -113,6 +119,28 @@ export function TopologyView({ topology }: Props) {
             .filter((r) => r.asId === (selectedAsNode.data as AsNodeData).asId)
         : [],
     [nodes, selectedAsNode],
+  );
+
+  const selectedIsdAses = useMemo(
+    () =>
+      selected?.type === "isd"
+        ? nodes
+            .filter((n) => n.type === "as")
+            .map((n) => n.data as AsNodeData)
+            .filter((a) => a.asId.startsWith((selected.data as IsdNodeData).isd + "-"))
+        : [],
+    [nodes, selected],
+  );
+
+  const selectedAsFromIsdRouters = useMemo(
+    () =>
+      selectedAs
+        ? nodes
+            .filter((n) => n.type === "router")
+            .map((n) => n.data as RouterNodeData)
+            .filter((r) => r.asId === selectedAs.asId)
+        : [],
+    [nodes, selectedAs],
   );
 
   return (
@@ -149,10 +177,15 @@ export function TopologyView({ topology }: Props) {
           <DetailsPanel
             element={selected}
             routers={selectedAsRouters}
+            isdAses={selectedIsdAses}
             onViewService={(id) => drawersStack.open(id)}
             onViewRouter={(r) => {
               setSelectedRouter(r);
               drawersStack.open("router-detail");
+            }}
+            onViewAs={(a) => {
+              setSelectedAs(a);
+              drawersStack.open("as-detail");
             }}
           />
         )}
@@ -162,22 +195,13 @@ export function TopologyView({ topology }: Props) {
         {...drawersStack.register("service-control")}
         position="right"
         size="md"
-        title={
-          selectedAsNode
-            ? `Control Service — ${(selectedAsNode.data as AsNodeData).control_service.name}`
-            : "Control Service"
-        }
+        title={activeAsData ? `Control Service — ${activeAsData.control_service.name}` : "Control Service"}
         styles={{ body: { paddingTop: 8 } }}
       >
-        {selectedAsNode && (
+        {activeAsData && (
           <ServiceDrawerContent
-            fields={[
-              {
-                label: "Address",
-                value: (selectedAsNode.data as AsNodeData).control_service.addr,
-              },
-            ]}
-            logsServiceName={(selectedAsNode.data as AsNodeData).control_service.name}
+            fields={[{ label: "Address", value: activeAsData.control_service.addr }]}
+            logsServiceName={activeAsData.control_service.name}
           />
         )}
       </Drawer>
@@ -186,26 +210,16 @@ export function TopologyView({ topology }: Props) {
         {...drawersStack.register("service-daemon")}
         position="right"
         size="md"
-        title={
-          selectedAsNode
-            ? `SCION Daemon — ${(selectedAsNode.data as AsNodeData).daemon_info.id}`
-            : "SCION Daemon"
-        }
+        title={activeAsData ? `SCION Daemon — ${activeAsData.daemon_info.id}` : "SCION Daemon"}
         styles={{ body: { paddingTop: 8 } }}
       >
-        {selectedAsNode && (
+        {activeAsData && (
           <ServiceDrawerContent
             fields={[
-              {
-                label: "Address",
-                value: (selectedAsNode.data as AsNodeData).daemon_info.address,
-              },
-              {
-                label: "API Address",
-                value: (selectedAsNode.data as AsNodeData).daemon_info.api_addr,
-              },
+              { label: "Address", value: activeAsData.daemon_info.address },
+              { label: "API Address", value: activeAsData.daemon_info.api_addr },
             ]}
-            logsServiceName={(selectedAsNode.data as AsNodeData).daemon_info.id}
+            logsServiceName={activeAsData.daemon_info.id}
           />
         )}
       </Drawer>
@@ -214,34 +228,18 @@ export function TopologyView({ topology }: Props) {
         {...drawersStack.register("service-hbird")}
         position="right"
         size="md"
-        title={
-          selectedAsNode && (selectedAsNode.data as AsNodeData).hbird_info
-            ? `Hummingbird — ${(selectedAsNode.data as AsNodeData).hbird_info!.id}`
-            : "Hummingbird"
-        }
+        title={activeAsData?.hbird_info ? `Hummingbird — ${activeAsData.hbird_info.id}` : "Hummingbird"}
         styles={{ body: { paddingTop: 8 } }}
       >
-        {selectedAsNode && (selectedAsNode.data as AsNodeData).hbird_info && (
+        {activeAsData?.hbird_info && (
           <ServiceDrawerContent
             fields={[
-              {
-                label: "Address",
-                value: (selectedAsNode.data as AsNodeData).hbird_info!.addr,
-              },
-              {
-                label: "Min Bandwidth",
-                value: (selectedAsNode.data as AsNodeData).hbird_info!.min_bandwidth,
-              },
-              {
-                label: "Max Bandwidth",
-                value: (selectedAsNode.data as AsNodeData).hbird_info!.max_bandwidth,
-              },
-              {
-                label: "Reservation Duration",
-                value: (selectedAsNode.data as AsNodeData).hbird_info!.reservation_duration,
-              },
+              { label: "Address", value: activeAsData.hbird_info.addr },
+              { label: "Min Bandwidth", value: activeAsData.hbird_info.min_bandwidth },
+              { label: "Max Bandwidth", value: activeAsData.hbird_info.max_bandwidth },
+              { label: "Reservation Duration", value: activeAsData.hbird_info.reservation_duration },
             ]}
-            logsServiceName={(selectedAsNode.data as AsNodeData).hbird_info!.id}
+            logsServiceName={activeAsData.hbird_info.id}
           />
         )}
       </Drawer>
@@ -254,6 +252,26 @@ export function TopologyView({ topology }: Props) {
         styles={{ body: { paddingTop: 8 } }}
       >
         {selectedRouter && <RouterDetails node={selectedRouter} />}
+      </Drawer>
+
+      <Drawer
+        {...drawersStack.register("as-detail")}
+        position="right"
+        size="md"
+        title={selectedAs ? `AS — ${selectedAs.asId}` : "AS"}
+        styles={{ body: { paddingTop: 8 } }}
+      >
+        {selectedAs && (
+          <AsDetails
+            node={selectedAs}
+            routers={selectedAsFromIsdRouters}
+            onViewService={(id) => drawersStack.open(id)}
+            onViewRouter={(r) => {
+              setSelectedRouter(r);
+              drawersStack.open("router-detail");
+            }}
+          />
+        )}
       </Drawer>
     </DrawerStack>
   );
@@ -346,10 +364,30 @@ function ServiceDrawerContent({ fields, logsServiceName }: ServiceDrawerProps) {
   );
 }
 
-function IsdDetails({ node }: { node: IsdNodeData }) {
+function IsdDetails({
+  node,
+  ases,
+  onViewAs,
+}: {
+  node: IsdNodeData;
+  ases: AsNodeData[];
+  onViewAs: (as: AsNodeData) => void;
+}) {
   return (
     <Stack gap="sm">
       <InfoItem label="ISD" value={node.isd} />
+      {ases.length > 0 && (
+        <Stack gap={4}>
+          <Text c="dimmed">ASes</Text>
+          <Stack gap={4}>
+            {ases.map((a) => (
+              <Anchor href="#" key={a.asId} onClick={() => onViewAs(a)}>
+                {a.asId}{a.core ? " (core)" : ""}
+              </Anchor>
+            ))}
+          </Stack>
+        </Stack>
+      )}
     </Stack>
   );
 }
@@ -452,20 +490,24 @@ function EdgeDetails({ edge }: { edge: TopologyEdge }) {
 function DetailsPanel({
   element,
   routers,
+  isdAses,
   onViewService,
   onViewRouter,
+  onViewAs,
 }: {
   element: TopologyNode | TopologyEdge;
   routers: RouterNodeData[];
+  isdAses: AsNodeData[];
   onViewService?: (id: ServiceDrawerId) => void;
   onViewRouter?: (router: RouterNodeData) => void;
+  onViewAs?: (as: AsNodeData) => void;
 }) {
   if (element.type === "router") {
     const node = element as TopologyNode;
     return <RouterDetails node={node.data as RouterNodeData} />;
   } else if (element.type === "isd") {
     const node = element as TopologyNode;
-    return <IsdDetails node={node.data as IsdNodeData} />;
+    return <IsdDetails node={node.data as IsdNodeData} ases={isdAses} onViewAs={onViewAs!} />;
   } else if (element.type === "as") {
     const node = element as TopologyNode;
     return (
