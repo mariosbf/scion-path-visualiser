@@ -59,7 +59,8 @@ export function TopologyView({ topology }: Props) {
   const [nodes, setNodes, onNodesChange] = useNodesState<TopologyNode>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<TopologyEdge>([]);
   const [selected, setSelected] = useState<Selected>(null);
-  const drawersStack = useDrawersStack(["detail", "service-control", "service-daemon", "service-hbird"]);
+  const drawersStack = useDrawersStack(["detail", "service-control", "service-daemon", "service-hbird", "router-detail"]);
+  const [selectedRouter, setSelectedRouter] = useState<RouterNodeData | null>(null);
 
   useEffect(() => {
     const { nodes: graphNodes, edges: graphEdges } = buildGraph(topology);
@@ -103,6 +104,17 @@ export function TopologyView({ topology }: Props) {
     [selected],
   );
 
+  const selectedAsRouters = useMemo(
+    () =>
+      selectedAsNode
+        ? nodes
+            .filter((n) => n.type === "router")
+            .map((n) => n.data as RouterNodeData)
+            .filter((r) => r.asId === (selectedAsNode.data as AsNodeData).asId)
+        : [],
+    [nodes, selectedAsNode],
+  );
+
   return (
     <DrawerStack>
       <div style={{ width: "100%", height: "100%", position: "relative" }}>
@@ -136,7 +148,12 @@ export function TopologyView({ topology }: Props) {
         {selected && (
           <DetailsPanel
             element={selected}
+            routers={selectedAsRouters}
             onViewService={(id) => drawersStack.open(id)}
+            onViewRouter={(r) => {
+              setSelectedRouter(r);
+              drawersStack.open("router-detail");
+            }}
           />
         )}
       </Drawer>
@@ -227,6 +244,16 @@ export function TopologyView({ topology }: Props) {
             logsServiceName={(selectedAsNode.data as AsNodeData).hbird_info!.id}
           />
         )}
+      </Drawer>
+
+      <Drawer
+        {...drawersStack.register("router-detail")}
+        position="right"
+        size="md"
+        title={selectedRouter ? `Router — ${selectedRouter.routerName}` : "Router"}
+        styles={{ body: { paddingTop: 8 } }}
+      >
+        {selectedRouter && <RouterDetails node={selectedRouter} />}
       </Drawer>
     </DrawerStack>
   );
@@ -331,10 +358,14 @@ type ServiceDrawerId = "service-control" | "service-daemon" | "service-hbird";
 
 function AsDetails({
   node,
+  routers,
   onViewService,
+  onViewRouter,
 }: {
   node: AsNodeData;
+  routers: RouterNodeData[];
   onViewService: (id: ServiceDrawerId) => void;
+  onViewRouter: (router: RouterNodeData) => void;
 }) {
   return (
     <Stack gap="sm">
@@ -364,6 +395,26 @@ function AsDetails({
         </Stack>
       </Stack>
       <Divider />
+
+      {routers.length > 0 && (
+        <>
+          <Stack gap={4}>
+            <Text c="dimmed">Routers</Text>
+            <Stack gap={4}>
+              {routers.map((r) => (
+                <Anchor
+                  href="#"
+                  key={`${r.routerName}-${r.interfaceId}`}
+                  onClick={() => onViewRouter(r)}
+                >
+                  {r.routerName} (if: {r.interfaceId})
+                </Anchor>
+              ))}
+            </Stack>
+          </Stack>
+          <Divider />
+        </>
+      )}
 
       <InfoItem
         label="Discovery Service"
@@ -400,10 +451,14 @@ function EdgeDetails({ edge }: { edge: TopologyEdge }) {
 
 function DetailsPanel({
   element,
+  routers,
   onViewService,
+  onViewRouter,
 }: {
   element: TopologyNode | TopologyEdge;
+  routers: RouterNodeData[];
   onViewService?: (id: ServiceDrawerId) => void;
+  onViewRouter?: (router: RouterNodeData) => void;
 }) {
   if (element.type === "router") {
     const node = element as TopologyNode;
@@ -416,7 +471,9 @@ function DetailsPanel({
     return (
       <AsDetails
         node={node.data as AsNodeData}
+        routers={routers}
         onViewService={onViewService!}
+        onViewRouter={onViewRouter!}
       />
     );
   } else {
