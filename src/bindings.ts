@@ -64,7 +64,7 @@ export type HbirdInfo = { id: string; reservation_duration: string; min_bandwidt
 export type Link = { a: LinkEndpoint; b: LinkEndpoint; link_type: LinkType }
 export type LinkEndpoint = { as_id: string; router_name: string; interface_id: number; underlay_local: string; underlay_remote: string }
 export type LinkType = "Core" | "Child" | "Peer"
-export type ScionDaemonInfo = { id: string }
+export type ScionDaemonInfo = { id: string; address: string; api_addr: string }
 export type Topology = { ases: { [key in string]: AsInfo }; links: Link[] }
 
 /** tauri-specta globals **/

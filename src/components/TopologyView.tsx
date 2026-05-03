@@ -179,6 +179,14 @@ export function TopologyView({ topology }: Props) {
         {selectedAsNode && (
           <ServiceDrawerContent
             fields={[
+              {
+                label: "Address",
+                value: (selectedAsNode.data as AsNodeData).daemon_info.address,
+              },
+              {
+                label: "API Address",
+                value: (selectedAsNode.data as AsNodeData).daemon_info.api_addr,
+              },
             ]}
             logsServiceName={(selectedAsNode.data as AsNodeData).daemon_info.id}
           />

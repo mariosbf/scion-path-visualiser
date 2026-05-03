@@ -49,6 +49,8 @@ pub struct HbirdInfo {
 #[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 pub struct ScionDaemonInfo {
     pub id: String,
+    pub address: std::net::SocketAddr,
+    pub api_addr: std::net::SocketAddr,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
@@ -155,11 +157,23 @@ pub struct RawHbirdHummingbird {
 #[derive(Debug, Deserialize)]
 pub struct RawSdConfig {
     pub general: RawSdGeneral,
+    pub sd: RawSdSection,
+    pub api: RawSdApiSection,
 }
 
 #[derive(Debug, Deserialize)]
 pub struct RawSdGeneral {
     pub id: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct RawSdSection {
+    pub address: std::net::SocketAddr,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct RawSdApiSection {
+    pub addr: std::net::SocketAddr,
 }
 
 pub fn build_topology(
@@ -281,6 +295,8 @@ pub fn build_topology(
             .get(&raw_as.isd_as)
             .map(|sd| ScionDaemonInfo {
                 id: sd.general.id.clone(),
+                address: sd.sd.address,
+                api_addr: sd.api.addr,
             })
             .with_context(|| {
                 format!(
@@ -469,6 +485,12 @@ mod tests {
                 general: RawSdGeneral {
                     id: "sd1-ff00_0_110".to_string(),
                 },
+                sd: RawSdSection {
+                    address: "127.0.0.1:30255".parse().unwrap(),
+                },
+                api: RawSdApiSection {
+                    addr: "127.0.0.1:30955".parse().unwrap(),
+                },
             },
         );
         sd_map.insert(
@@ -476,6 +498,12 @@ mod tests {
             RawSdConfig {
                 general: RawSdGeneral {
                     id: "sd1-ff00_0_111".to_string(),
+                },
+                sd: RawSdSection {
+                    address: "127.0.0.1:30256".parse().unwrap(),
+                },
+                api: RawSdApiSection {
+                    addr: "127.0.0.1:30956".parse().unwrap(),
                 },
             },
         );
