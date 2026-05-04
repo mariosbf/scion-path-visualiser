@@ -357,6 +357,7 @@ pub fn run() {
         start_log_stream,
         stop_log_stream,
         ehapi_bridge::mint_token,
+        paths::get_paths,
     ]);
 
     #[cfg(debug_assertions)]
@@ -414,6 +415,7 @@ mod tests {
                 super::start_log_stream,
                 super::stop_log_stream,
                 super::ehapi_bridge::mint_token,
+                super::paths::get_paths,
             ])
             .export(
                 specta_typescript::Typescript::default().header("// @ts-nocheck"),

@@ -52,6 +52,14 @@ async mintToken(isdAs: string, ttlSeconds: number) : Promise<Result<string, stri
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
 }
+},
+async getPaths(srcAs: string, dstAs: string) : Promise<Result<ScionPath[], string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("get_paths", { srcAs, dstAs }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
 }
 }
 
@@ -76,6 +84,8 @@ export type Link = { a: LinkEndpoint; b: LinkEndpoint; link_type: LinkType }
 export type LinkEndpoint = { as_id: string; router_name: string; interface_id: number; underlay_local: string; underlay_remote: string }
 export type LinkType = "Core" | "Child" | "Peer"
 export type ScionDaemonInfo = { id: string; address: string; api_addr: string }
+export type ScionPath = { interfaces: ScionPathInterface[]; expiry: string; mtu: number }
+export type ScionPathInterface = { isd_as: string; interface_id: number }
 export type Topology = { ases: { [key in string]: AsInfo }; links: Link[] }
 
 /** tauri-specta globals **/
