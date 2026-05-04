@@ -27,7 +27,7 @@ pub struct ScionPath {
 
 #[tauri::command]
 #[specta::specta]
-pub async fn get_paths(
+pub(crate) async fn get_paths(
     topology_state: tauri::State<'_, TopologyState>,
     bridges: tauri::State<'_, EhapiBridgesState>,
     src_as: IsdAsnDef,

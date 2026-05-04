@@ -13,7 +13,7 @@ use topology::{build_topology, IsdAsnDef, RawAsTopology, RawHbirdConfig, RawSdCo
 use crate::ehapi_bridge::{start_ehapi_bridges, EhapiBridgesState};
 
 struct LogStreams(Mutex<HashMap<String, tokio::process::Child>>);
-struct TopologyState(Mutex<Option<Topology>>);
+pub(crate) struct TopologyState(pub(crate) Mutex<Option<Topology>>);
 
 #[tauri::command]
 #[specta::specta]
