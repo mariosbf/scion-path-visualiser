@@ -1,11 +1,9 @@
 import {
   Anchor,
   Badge,
-  Button,
   Divider,
   Drawer,
   DrawerStack,
-  Group,
   Stack,
   Text,
   useDrawersStack,
@@ -21,9 +19,7 @@ import {
   type NodeTypes,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
-import { IconFileText } from "@tabler/icons-react";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { useNavigate } from "@tanstack/react-router";
 import type { Topology } from "../bindings";
 import { layoutGraph } from "../lib/layout";
 import type {
@@ -37,7 +33,13 @@ import { buildGraph } from "../lib/topology";
 import { AsNode } from "./nodes/AsNode";
 import { IsdNode } from "./nodes/IsdNode";
 import { RouterNode } from "./nodes/RouterNode";
-import CopyActionIcon from "./util/CopyActionIcon";
+import { InfoItem } from "./drawers/InfoItem";
+import { ControlServiceDrawer } from "./drawers/ControlServiceDrawer";
+import { DaemonDrawer } from "./drawers/DaemonDrawer";
+import { HummingbirdDrawer } from "./drawers/HummingbirdDrawer";
+import { EndhostApiBridgeDrawer } from "./drawers/EndhostApiBridgeDrawer";
+import { RouterDetailDrawer, RouterDetails } from "./drawers/RouterDetailDrawer";
+import { AsDetailDrawer, AsDetails, type ServiceDrawerId } from "./drawers/AsDetailDrawer";
 
 const nodeTypes: NodeTypes = { isd: IsdNode, as: AsNode, router: RouterNode };
 
@@ -204,225 +206,42 @@ export function TopologyView({ topology }: Props) {
         )}
       </Drawer>
 
-      <Drawer
+      <ControlServiceDrawer
         {...drawersStack.register("service-control")}
-        position="right"
-        size="md"
-        title={
-          activeAsData
-            ? `Control Service — ${activeAsData.control_service.name}`
-            : "Control Service"
-        }
-        styles={{ body: { paddingTop: 8 } }}
-      >
-        {activeAsData && (
-          <ServiceDrawerContent
-            fields={[
-              { label: "Address", value: activeAsData.control_service.addr },
-            ]}
-            logsServiceName={activeAsData.control_service.name}
-          />
-        )}
-      </Drawer>
+        activeAsData={activeAsData}
+      />
 
-      <Drawer
+      <DaemonDrawer
         {...drawersStack.register("service-daemon")}
-        position="right"
-        size="md"
-        title={
-          activeAsData
-            ? `SCION Daemon — ${activeAsData.daemon_info.id}`
-            : "SCION Daemon"
-        }
-        styles={{ body: { paddingTop: 8 } }}
-      >
-        {activeAsData && (
-          <ServiceDrawerContent
-            fields={[
-              { label: "Address", value: activeAsData.daemon_info.address },
-              {
-                label: "API Address",
-                value: activeAsData.daemon_info.api_addr,
-              },
-            ]}
-            logsServiceName={activeAsData.daemon_info.id}
-          />
-        )}
-      </Drawer>
+        activeAsData={activeAsData}
+      />
 
-      <Drawer
+      <HummingbirdDrawer
         {...drawersStack.register("service-hbird")}
-        position="right"
-        size="md"
-        title={
-          activeAsData?.hbird_info
-            ? `Hummingbird — ${activeAsData.hbird_info.id}`
-            : "Hummingbird"
-        }
-        styles={{ body: { paddingTop: 8 } }}
-      >
-        {activeAsData?.hbird_info && (
-          <ServiceDrawerContent
-            fields={[
-              { label: "Address", value: activeAsData.hbird_info.addr },
-              {
-                label: "Min Bandwidth",
-                value: activeAsData.hbird_info.min_bandwidth,
-              },
-              {
-                label: "Max Bandwidth",
-                value: activeAsData.hbird_info.max_bandwidth,
-              },
-              {
-                label: "Reservation Duration",
-                value: activeAsData.hbird_info.reservation_duration,
-              },
-            ]}
-            logsServiceName={activeAsData.hbird_info.id}
-          />
-        )}
-      </Drawer>
+        activeAsData={activeAsData}
+      />
 
-      <Drawer
+      <EndhostApiBridgeDrawer
         {...drawersStack.register("ehapi-bridge")}
-        position="right"
-        size="md"
-        title={
-          activeAsData
-            ? `Endhost API Bridge — ${activeAsData.asId}`
-            : "Endhost API Bridge"
-        }
-        styles={{ body: { paddingTop: 8 } }}
-      >
-        {activeAsData && (
-          <ServiceDrawerContent
-            fields={[
-              { label: "Address", value: activeAsData.ehapi_bridge.addr },
-            ]}
-            logsServiceName={`${activeAsData.asId}-ehapi-bridge`}
-          />
-        )}
-      </Drawer>
+        activeAsData={activeAsData}
+      />
 
-      <Drawer
+      <RouterDetailDrawer
         {...drawersStack.register("router-detail")}
-        position="right"
-        size="md"
-        title={
-          selectedRouter ? `Router — ${selectedRouter.routerName}` : "Router"
-        }
-        styles={{ body: { paddingTop: 8 } }}
-      >
-        {selectedRouter && <RouterDetails node={selectedRouter} />}
-      </Drawer>
+        selectedRouter={selectedRouter}
+      />
 
-      <Drawer
+      <AsDetailDrawer
         {...drawersStack.register("as-detail")}
-        position="right"
-        size="md"
-        title={selectedAs ? `AS — ${selectedAs.asId}` : "AS"}
-        styles={{ body: { paddingTop: 8 } }}
-      >
-        {selectedAs && (
-          <AsDetails
-            node={selectedAs}
-            routers={selectedAsFromIsdRouters}
-            onViewService={(id) => drawersStack.open(id)}
-            onViewRouter={(r) => {
-              setSelectedRouter(r);
-              drawersStack.open("router-detail");
-            }}
-          />
-        )}
-      </Drawer>
+        selectedAs={selectedAs}
+        routers={selectedAsFromIsdRouters}
+        onViewService={(id) => drawersStack.open(id)}
+        onViewRouter={(r) => {
+          setSelectedRouter(r);
+          drawersStack.open("router-detail");
+        }}
+      />
     </DrawerStack>
-  );
-}
-
-function InfoItem({
-  label,
-  ...props
-}: { label: string } & (
-  | {
-    value: string | number;
-    values?: never;
-  }
-  | {
-    value?: never;
-    values: (string | number)[];
-  }
-)) {
-  const item = (v: string | number) => (
-    <Group justify="space-between" key={v}>
-      <Text>{v}</Text>
-      <CopyActionIcon value={v} />
-    </Group>
-  );
-
-  const value =
-    props.value !== undefined ? item(props.value) : props.values?.map(item);
-
-  return (
-    <>
-      <Stack gap={4}>
-        <Text c="dimmed">{label}</Text>
-        <Stack gap={4}>{value}</Stack>
-      </Stack>
-      <Divider />
-    </>
-  );
-}
-
-function RouterDetails({ node }: { node: RouterNodeData }) {
-  const navigate = useNavigate();
-  return (
-    <Stack gap="sm">
-      <InfoItem label="Router" value={node.routerName} />
-      <InfoItem label="AS" value={node.asId} />
-      <InfoItem label="Interface ID" value={node.interfaceId} />
-      <InfoItem label="Underlay local" value={node.underlayLocal} />
-      <InfoItem label="Underlay remote" value={node.underlayRemote} />
-      <Button
-        variant="light"
-        leftSection={<IconFileText size={14} />}
-        onClick={() =>
-          navigate({
-            to: "/app/logs/$serviceName",
-            params: { serviceName: node.routerName },
-          })
-        }
-      >
-        View Logs
-      </Button>
-    </Stack>
-  );
-}
-
-interface ServiceDrawerProps {
-  fields: { label: string; value: string | number }[];
-  logsServiceName: string;
-}
-
-function ServiceDrawerContent({ fields, logsServiceName }: ServiceDrawerProps) {
-  const navigate = useNavigate();
-  return (
-    <Stack gap="sm">
-      {fields.map((f) => (
-        <InfoItem key={f.label} label={f.label} value={f.value} />
-      ))}
-      <Button
-        variant="light"
-        leftSection={<IconFileText size={14} />}
-        onClick={() =>
-          navigate({
-            to: "/app/logs/$serviceName",
-            params: { serviceName: logsServiceName },
-          })
-        }
-      >
-        View Logs
-      </Button>
-    </Stack>
   );
 }
 
@@ -451,83 +270,6 @@ function IsdDetails({
           </Stack>
         </Stack>
       )}
-    </Stack>
-  );
-}
-
-type ServiceDrawerId =
-  | "service-control"
-  | "service-daemon"
-  | "service-hbird"
-  | "ehapi-bridge";
-
-function AsDetails({
-  node,
-  routers,
-  onViewService,
-  onViewRouter,
-}: {
-  node: AsNodeData;
-  routers: RouterNodeData[];
-  onViewService: (id: ServiceDrawerId) => void;
-  onViewRouter: (router: RouterNodeData) => void;
-}) {
-  return (
-    <Stack gap="sm">
-      <InfoItem label="ISD-AS " value={node.asId} />
-      {node.mtu !== null && <InfoItem label="MTU" value={node.mtu} />}
-
-      <Stack>
-        <Text c="dimmed">Type</Text>
-        {node.core && <Badge color="orange">Core</Badge>}
-      </Stack>
-      <Divider />
-
-      <Stack gap={4}>
-        <Text c="dimmed">Services</Text>
-        <Stack gap={4}>
-          <Anchor href="#" onClick={() => onViewService("service-control")}>
-            Control service ({node.control_service.name})
-          </Anchor>
-          <Anchor href="#" onClick={() => onViewService("service-daemon")}>
-            SCION Daemon ({node.daemon_info.id})
-          </Anchor>
-          <Anchor href="#" onClick={() => onViewService("ehapi-bridge")}>
-            Endhost API Bridge
-          </Anchor>
-          {node.hbird_info && (
-            <Anchor href="#" onClick={() => onViewService("service-hbird")}>
-              Hummingbird ({node.hbird_info.id})
-            </Anchor>
-          )}
-        </Stack>
-      </Stack>
-      <Divider />
-
-      {routers.length > 0 && (
-        <>
-          <Stack gap={4}>
-            <Text c="dimmed">Routers</Text>
-            <Stack gap={4}>
-              {routers.map((r) => (
-                <Anchor
-                  href="#"
-                  key={`${r.routerName}-${r.interfaceId}`}
-                  onClick={() => onViewRouter(r)}
-                >
-                  {r.routerName} (if: {r.interfaceId})
-                </Anchor>
-              ))}
-            </Stack>
-          </Stack>
-          <Divider />
-        </>
-      )}
-
-      <InfoItem
-        label="Discovery Service"
-        values={[node.discovery_service.name, node.discovery_service.addr]}
-      />
     </Stack>
   );
 }

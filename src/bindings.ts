@@ -5,9 +5,9 @@
 
 
 export const commands = {
-async loadProject(genDir: string) : Promise<Result<Topology, string>> {
+async getTopology() : Promise<Result<Topology, string>> {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("load_project", { genDir }) };
+    return { status: "ok", data: await TAURI_INVOKE("get_topology") };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
@@ -40,6 +40,14 @@ async startLogStream(folder: string, serviceName: string) : Promise<Result<strin
 async stopLogStream(streamId: string) : Promise<Result<null, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("stop_log_stream", { streamId }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async mintToken(isdAs: string, ttlSeconds: number) : Promise<Result<string, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("mint_token", { isdAs, ttlSeconds }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };

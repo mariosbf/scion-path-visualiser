@@ -6,6 +6,7 @@ import {
 } from "@mantine/core";
 import { IconCheck, IconCopy } from "@tabler/icons-react";
 import { useEffect, useState } from "react";
+import { FadeIn } from "./FadeIn";
 
 export default function CopyActionIcon({
   value,
@@ -37,7 +38,7 @@ export default function CopyActionIcon({
         {...props}
         onClick={onClick}
       >
-        {copied ? <IconCheck size={16} /> : <IconCopy size={16} />}
+        {copied ? <FadeIn><IconCheck size={16} /></FadeIn> : <IconCopy size={16} />}
       </ActionIcon>
     </Tooltip>
   );

@@ -343,7 +343,7 @@ function LoadingStep({
         return;
       }
 
-      const topoResult = await commands.loadProject(setupResult.data);
+      const topoResult = await commands.getTopology();
       if (cancelled) return;
       if (topoResult.status === "error") {
         setError(topoResult.error);
