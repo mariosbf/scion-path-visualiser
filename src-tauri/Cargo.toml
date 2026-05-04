@@ -34,4 +34,9 @@ tauri-plugin-log = "2"
 anyhow = "1.0.102"
 toml = "0.8"
 uuid = { version = "1", features = ["v4"] }
+scionpings = { git = "ssh://github.com/jeltevanbommel/scion-ehapi-bridge.git", version = "0.1.0" }
+scion-sdk-observability = "0.5.2"
+tokio-util = "0.7.18"
+url = "2.5.8"
+tracing = "0.1.44"
 

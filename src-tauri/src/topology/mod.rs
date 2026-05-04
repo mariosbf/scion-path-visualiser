@@ -1,11 +1,13 @@
 use anyhow::Context;
 use scion_proto::address::IsdAsn;
+use scionpings::endhost_api_bridge::config::UdpRouterRuntimeConfig;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
 pub const HBIRD_REDEMPTION_API_PORT: u16 = 30528;
+pub const EHAPI_BRIDGE_PORT: u16 = 31100;
 
 // ── IsdAsnDef ─────────────────────────────────────────────────────────────────
 
@@ -35,6 +37,39 @@ pub struct AsInfo {
     pub discovery_service: DiscoveryServiceInfo,
     pub hummingbird: Option<HbirdInfo>,
     pub daemon: ScionDaemonInfo,
+    pub endhost_api_bridge: EndhostApiBridgeInfo,
+    pub border_routers: Vec<BorderRouterInfo>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
+pub struct BorderRouterInfo {
+    pub name: String,
+    pub internal_addr: std::net::SocketAddr,
+    pub interfaces: HashMap<u16, BorderRouterInterfaceInfo>,
+}
+
+impl From<&BorderRouterInfo> for UdpRouterRuntimeConfig {
+    fn from(val: &BorderRouterInfo) -> Self {
+        UdpRouterRuntimeConfig {
+            endpoint: val.internal_addr,
+            interfaces: val.interfaces.keys().cloned().collect(),
+            isd_ases: vec![],
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
+pub struct EndhostApiBridgeInfo {
+    pub addr: std::net::SocketAddr,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
+pub struct BorderRouterInterfaceInfo {
+    pub isd_as: IsdAsnDef,
+    pub link_to: String,
+    pub mtu: Option<u32>,
+    pub underlay_local: std::net::SocketAddr,
+    pub underlay_remote: std::net::SocketAddr,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
@@ -99,6 +134,38 @@ pub struct RawAsTopology {
     pub control_service: HashMap<String, RawControlService>,
     pub discovery_service: HashMap<String, RawDiscoveryService>,
     pub dispatched_ports: Option<String>,
+}
+
+impl RawAsTopology {
+    pub fn border_router_info(&self) -> Vec<BorderRouterInfo> {
+        self.border_routers
+            .iter()
+            .map(|(name, router)| BorderRouterInfo {
+                name: name.clone(),
+                internal_addr: router.internal_addr,
+                interfaces: router
+                    .interfaces
+                    .iter()
+                    .filter_map(|(if_id_str, iface)| {
+                        if let Ok(if_id) = if_id_str.parse::<u16>() {
+                            Some((
+                                if_id,
+                                BorderRouterInterfaceInfo {
+                                    isd_as: iface.isd_as,
+                                    link_to: iface.link_to.clone(),
+                                    mtu: iface.mtu,
+                                    underlay_local: iface.underlay.local,
+                                    underlay_remote: iface.underlay.remote,
+                                },
+                            ))
+                        } else {
+                            None
+                        }
+                    })
+                    .collect(),
+            })
+            .collect()
+    }
 }
 
 #[derive(Debug, Deserialize)]
@@ -305,9 +372,17 @@ pub fn build_topology(
                 )
             })?;
 
+        let mut ehapi_addr = control_service_info.addr; 
+        ehapi_addr.set_port(EHAPI_BRIDGE_PORT);
+
+        let endhost_api_bridge = EndhostApiBridgeInfo { addr: ehapi_addr };
+
         ases.insert(
             raw_as.isd_as,
             AsInfo {
+                border_routers: raw_as.border_router_info(),
+                endhost_api_bridge,
+                // address as the control service
                 core: raw_as.attributes.contains(&"core".to_string()),
                 mtu: raw_as.mtu,
                 control_service: ControlServiceInfo {
@@ -532,6 +607,9 @@ mod tests {
         let result = build_topology(make_fixture(), HashMap::new(), HashMap::new());
         assert!(result.is_err());
         let msg = result.unwrap_err().to_string();
-        assert!(msg.contains("sd.toml"), "error should mention sd.toml, got: {msg}");
+        assert!(
+            msg.contains("sd.toml"),
+            "error should mention sd.toml, got: {msg}"
+        );
     }
 }

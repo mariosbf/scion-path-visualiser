@@ -1,12 +1,19 @@
 pub mod topology;
 
-use std::collections::HashMap;
+use scion_sdk_observability::metrics::registry::MetricsRegistry;
+use scionpings::endhost_api_bridge;
+use scionpings::endhost_api_bridge::token_authority::TokenAuthority;
 use std::sync::Mutex;
+use std::{collections::HashMap, sync::Arc};
 use tauri::{Emitter, Manager};
 use tauri_specta::{collect_commands, Builder};
+use tokio_util::sync::CancellationToken;
 use topology::{build_topology, IsdAsnDef, RawAsTopology, RawHbirdConfig, RawSdConfig, Topology};
+use url::Url;
 
 struct LogStreams(Mutex<HashMap<String, tokio::process::Child>>);
+struct TopologyState(Option<Mutex<Topology>>);
+struct EhapiBridgesState(Mutex<HashMap<IsdAsnDef, Arc<endhost_api_bridge::state::AppState>>>);
 
 #[tauri::command]
 #[specta::specta]
@@ -59,7 +66,8 @@ fn load_project(gen_dir: String) -> Result<Topology, String> {
         })
         .collect::<Result<Vec<_>, String>>()?;
 
-    build_topology(raw_ases, hbird_map, sd_map).map_err(|e| format!("Failed to build topology: {e}"))
+    build_topology(raw_ases, hbird_map, sd_map)
+        .map_err(|e| format!("Failed to build topology: {e}"))
 }
 
 async fn stream_output(
@@ -192,6 +200,7 @@ async fn setup_scion_network(
     app.emit("scion-setup-phase", "Generating topology configuration…")
         .ok();
 
+    // Generate topology
     let mut child = tokio::process::Command::new("./scion.sh")
         .args(["topology", "-c", &topo_file])
         .current_dir(&folder)
@@ -211,6 +220,7 @@ async fn setup_scion_network(
         return Err(format!("scion.sh topology exited with status {status}"));
     }
 
+    // Start SCION topology
     app.emit("scion-setup-phase", "Starting SCION topology…")
         .ok();
 
@@ -233,6 +243,16 @@ async fn setup_scion_network(
         return Err(format!("scion.sh start exited with status {status}"));
     }
 
+    // Read topoology and store in state
+    let topology =
+        load_project(topo_file.clone()).map_err(|e| format!("Failed to load topology: {e}"))?;
+
+    // Start endhost API bridges
+    start_ehapi_bridges(&app, &topology)?;
+
+    app.manage(TopologyState(Some(Mutex::new(topology))));
+
+    // Copy gen folder to backup location
     let src_gen = std::path::Path::new(&folder).join("gen");
     let app_data_dir = app
         .path()
@@ -274,6 +294,68 @@ fn copy_dir_all(src: &std::path::Path, dst: &std::path::Path) -> Result<(), Stri
             std::fs::copy(entry.path(), dst.join(entry.file_name())).map_err(|e| e.to_string())?;
         }
     }
+    Ok(())
+}
+
+fn start_ehapi_bridges(app: &tauri::AppHandle, topology: &Topology) -> Result<(), String> {
+    for (isd_as, as_info) in topology.ases.iter() {
+        app.emit(
+            "scion-setup-phase",
+            format!("Starting endhost API bridge for AS {}…", isd_as.0),
+        )
+        .ok();
+
+        // Derive from control_service.addr
+        let control_plane_url = Url::parse(&format!("http://{}", as_info.control_service.addr))
+            .map_err(|e| format!("Invalid control service address: {e}"))?;
+
+        // Start endhost API bridges
+        let cfg = endhost_api_bridge::config::EffectiveConfig {
+            bind_endhost_api: as_info.endhost_api_bridge.addr,
+            advertise_endhost_api_ip: None,
+            control_plane_url,
+            isd_ases: vec![isd_as.0],
+            src_core: as_info.core,
+            token_public_key_pem: None,
+            print_insecure_token: false,
+            udp_routers: as_info.border_routers.iter().map(|br| br.into()).collect(),
+            log_level: tracing::Level::DEBUG,
+        };
+        let token_authority = Arc::new(
+            TokenAuthority::load_or_create(&cfg)
+                .map_err(|e| format!("Failed to load or create token authority: {e}"))?,
+        );
+
+        let cancellation_token = CancellationToken::new();
+        let metrics_registry = Arc::new(MetricsRegistry::new());
+        let ehapi_app_state = Arc::new(endhost_api_bridge::state::AppState {
+            token_authority,
+            metrics_registry,
+            cancel: cancellation_token.clone(),
+        });
+
+        app.state::<EhapiBridgesState>()
+            .0
+            .lock()
+            .unwrap()
+            .insert(*isd_as, ehapi_app_state.clone());
+
+        #[allow(clippy::clone_on_copy)]
+        let isd_as = isd_as.clone();
+
+        tokio::spawn(async move {
+            // TODO: handle error appropriately
+            let _ = scionpings::endhost_api_bridge::server::run(ehapi_app_state, cfg)
+                .await
+                .map_err(|e| {
+                    format!(
+                        "Failed to start endhost API bridge for AS {}: {e}",
+                        isd_as.0
+                    )
+                });
+        });
+    }
+
     Ok(())
 }
 
@@ -336,9 +418,20 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_store::Builder::default().build())
         .manage(LogStreams(Mutex::new(HashMap::new())))
+        .manage(TopologyState(None))
+        .manage(EhapiBridgesState(Mutex::new(HashMap::new())))
         .invoke_handler(builder.invoke_handler())
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error building tauri application")
+        .run(|app, event| {
+            if let tauri::RunEvent::Exit = event {
+                let state = app.state::<EhapiBridgesState>();
+                let map = state.0.lock().unwrap();
+                for bridge in map.values() {
+                    bridge.cancel.cancel();
+                }
+            }
+        });
 }
 
 #[cfg(test)]

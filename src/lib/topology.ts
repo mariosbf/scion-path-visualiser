@@ -2,6 +2,7 @@ import type { Node, Edge } from "@xyflow/react";
 import type {
   ControlServiceInfo,
   DiscoveryServiceInfo,
+  EndhostApiBridgeInfo,
   HbirdInfo,
   ScionDaemonInfo,
   Topology,
@@ -21,6 +22,7 @@ export interface AsNodeData extends Record<string, unknown> {
   discovery_service: DiscoveryServiceInfo;
   hbird_info: HbirdInfo | null;
   daemon_info: ScionDaemonInfo;
+  ehapi_bridge: EndhostApiBridgeInfo;
 }
 
 export interface RouterNodeData extends Record<string, unknown> {
@@ -79,6 +81,7 @@ export function buildGraph(topology: Topology): {
         discovery_service: asInfo.discovery_service,
         hbird_info: asInfo.hummingbird,
         daemon_info: asInfo.daemon,
+        ehapi_bridge: asInfo.endhost_api_bridge,
       },
       parentId: `isd-${isd}`,
       extent: "parent",

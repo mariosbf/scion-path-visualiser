@@ -59,8 +59,18 @@ export function TopologyView({ topology }: Props) {
   const [nodes, setNodes, onNodesChange] = useNodesState<TopologyNode>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<TopologyEdge>([]);
   const [selected, setSelected] = useState<Selected>(null);
-  const drawersStack = useDrawersStack(["detail", "service-control", "service-daemon", "service-hbird", "router-detail", "as-detail"]);
-  const [selectedRouter, setSelectedRouter] = useState<RouterNodeData | null>(null);
+  const drawersStack = useDrawersStack([
+    "detail",
+    "service-control",
+    "service-daemon",
+    "service-hbird",
+    "router-detail",
+    "as-detail",
+    "ehapi-bridge",
+  ]);
+  const [selectedRouter, setSelectedRouter] = useState<RouterNodeData | null>(
+    null,
+  );
   const [selectedAs, setSelectedAs] = useState<AsNodeData | null>(null);
 
   useEffect(() => {
@@ -106,7 +116,8 @@ export function TopologyView({ topology }: Props) {
   );
 
   const activeAsData = useMemo(
-    () => (selectedAsNode?.data as AsNodeData | undefined) ?? selectedAs ?? null,
+    () =>
+      (selectedAsNode?.data as AsNodeData | undefined) ?? selectedAs ?? null,
     [selectedAsNode, selectedAs],
   );
 
@@ -114,9 +125,9 @@ export function TopologyView({ topology }: Props) {
     () =>
       selectedAsNode
         ? nodes
-            .filter((n) => n.type === "router")
-            .map((n) => n.data as RouterNodeData)
-            .filter((r) => r.asId === (selectedAsNode.data as AsNodeData).asId)
+          .filter((n) => n.type === "router")
+          .map((n) => n.data as RouterNodeData)
+          .filter((r) => r.asId === (selectedAsNode.data as AsNodeData).asId)
         : [],
     [nodes, selectedAsNode],
   );
@@ -125,9 +136,11 @@ export function TopologyView({ topology }: Props) {
     () =>
       selected?.type === "isd"
         ? nodes
-            .filter((n) => n.type === "as")
-            .map((n) => n.data as AsNodeData)
-            .filter((a) => a.asId.startsWith((selected.data as IsdNodeData).isd + "-"))
+          .filter((n) => n.type === "as")
+          .map((n) => n.data as AsNodeData)
+          .filter((a) =>
+            a.asId.startsWith((selected.data as IsdNodeData).isd + "-"),
+          )
         : [],
     [nodes, selected],
   );
@@ -136,9 +149,9 @@ export function TopologyView({ topology }: Props) {
     () =>
       selectedAs
         ? nodes
-            .filter((n) => n.type === "router")
-            .map((n) => n.data as RouterNodeData)
-            .filter((r) => r.asId === selectedAs.asId)
+          .filter((n) => n.type === "router")
+          .map((n) => n.data as RouterNodeData)
+          .filter((r) => r.asId === selectedAs.asId)
         : [],
     [nodes, selectedAs],
   );
@@ -195,12 +208,18 @@ export function TopologyView({ topology }: Props) {
         {...drawersStack.register("service-control")}
         position="right"
         size="md"
-        title={activeAsData ? `Control Service — ${activeAsData.control_service.name}` : "Control Service"}
+        title={
+          activeAsData
+            ? `Control Service — ${activeAsData.control_service.name}`
+            : "Control Service"
+        }
         styles={{ body: { paddingTop: 8 } }}
       >
         {activeAsData && (
           <ServiceDrawerContent
-            fields={[{ label: "Address", value: activeAsData.control_service.addr }]}
+            fields={[
+              { label: "Address", value: activeAsData.control_service.addr },
+            ]}
             logsServiceName={activeAsData.control_service.name}
           />
         )}
@@ -210,14 +229,21 @@ export function TopologyView({ topology }: Props) {
         {...drawersStack.register("service-daemon")}
         position="right"
         size="md"
-        title={activeAsData ? `SCION Daemon — ${activeAsData.daemon_info.id}` : "SCION Daemon"}
+        title={
+          activeAsData
+            ? `SCION Daemon — ${activeAsData.daemon_info.id}`
+            : "SCION Daemon"
+        }
         styles={{ body: { paddingTop: 8 } }}
       >
         {activeAsData && (
           <ServiceDrawerContent
             fields={[
               { label: "Address", value: activeAsData.daemon_info.address },
-              { label: "API Address", value: activeAsData.daemon_info.api_addr },
+              {
+                label: "API Address",
+                value: activeAsData.daemon_info.api_addr,
+              },
             ]}
             logsServiceName={activeAsData.daemon_info.id}
           />
@@ -228,18 +254,52 @@ export function TopologyView({ topology }: Props) {
         {...drawersStack.register("service-hbird")}
         position="right"
         size="md"
-        title={activeAsData?.hbird_info ? `Hummingbird — ${activeAsData.hbird_info.id}` : "Hummingbird"}
+        title={
+          activeAsData?.hbird_info
+            ? `Hummingbird — ${activeAsData.hbird_info.id}`
+            : "Hummingbird"
+        }
         styles={{ body: { paddingTop: 8 } }}
       >
         {activeAsData?.hbird_info && (
           <ServiceDrawerContent
             fields={[
               { label: "Address", value: activeAsData.hbird_info.addr },
-              { label: "Min Bandwidth", value: activeAsData.hbird_info.min_bandwidth },
-              { label: "Max Bandwidth", value: activeAsData.hbird_info.max_bandwidth },
-              { label: "Reservation Duration", value: activeAsData.hbird_info.reservation_duration },
+              {
+                label: "Min Bandwidth",
+                value: activeAsData.hbird_info.min_bandwidth,
+              },
+              {
+                label: "Max Bandwidth",
+                value: activeAsData.hbird_info.max_bandwidth,
+              },
+              {
+                label: "Reservation Duration",
+                value: activeAsData.hbird_info.reservation_duration,
+              },
             ]}
             logsServiceName={activeAsData.hbird_info.id}
+          />
+        )}
+      </Drawer>
+
+      <Drawer
+        {...drawersStack.register("ehapi-bridge")}
+        position="right"
+        size="md"
+        title={
+          activeAsData
+            ? `Endhost API Bridge — ${activeAsData.asId}`
+            : "Endhost API Bridge"
+        }
+        styles={{ body: { paddingTop: 8 } }}
+      >
+        {activeAsData && (
+          <ServiceDrawerContent
+            fields={[
+              { label: "Address", value: activeAsData.ehapi_bridge.addr },
+            ]}
+            logsServiceName={`${activeAsData.asId}-ehapi-bridge`}
           />
         )}
       </Drawer>
@@ -248,7 +308,9 @@ export function TopologyView({ topology }: Props) {
         {...drawersStack.register("router-detail")}
         position="right"
         size="md"
-        title={selectedRouter ? `Router — ${selectedRouter.routerName}` : "Router"}
+        title={
+          selectedRouter ? `Router — ${selectedRouter.routerName}` : "Router"
+        }
         styles={{ body: { paddingTop: 8 } }}
       >
         {selectedRouter && <RouterDetails node={selectedRouter} />}
@@ -382,7 +444,8 @@ function IsdDetails({
           <Stack gap={4}>
             {ases.map((a) => (
               <Anchor href="#" key={a.asId} onClick={() => onViewAs(a)}>
-                {a.asId}{a.core ? " (core)" : ""}
+                {a.asId}
+                {a.core ? " (core)" : ""}
               </Anchor>
             ))}
           </Stack>
@@ -392,7 +455,11 @@ function IsdDetails({
   );
 }
 
-type ServiceDrawerId = "service-control" | "service-daemon" | "service-hbird";
+type ServiceDrawerId =
+  | "service-control"
+  | "service-daemon"
+  | "service-hbird"
+  | "ehapi-bridge";
 
 function AsDetails({
   node,
@@ -424,6 +491,9 @@ function AsDetails({
           </Anchor>
           <Anchor href="#" onClick={() => onViewService("service-daemon")}>
             SCION Daemon ({node.daemon_info.id})
+          </Anchor>
+          <Anchor href="#" onClick={() => onViewService("ehapi-bridge")}>
+            Endhost API Bridge
           </Anchor>
           {node.hbird_info && (
             <Anchor href="#" onClick={() => onViewService("service-hbird")}>
@@ -507,7 +577,13 @@ function DetailsPanel({
     return <RouterDetails node={node.data as RouterNodeData} />;
   } else if (element.type === "isd") {
     const node = element as TopologyNode;
-    return <IsdDetails node={node.data as IsdNodeData} ases={isdAses} onViewAs={onViewAs!} />;
+    return (
+      <IsdDetails
+        node={node.data as IsdNodeData}
+        ases={isdAses}
+        onViewAs={onViewAs!}
+      />
+    );
   } else if (element.type === "as") {
     const node = element as TopologyNode;
     return (

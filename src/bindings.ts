@@ -57,9 +57,12 @@ async stopLogStream(streamId: string) : Promise<Result<null, string>> {
 
 /** user-defined types **/
 
-export type AsInfo = { core: boolean; mtu: number | null; control_service: ControlServiceInfo; discovery_service: DiscoveryServiceInfo; hummingbird: HbirdInfo | null; daemon: ScionDaemonInfo }
+export type AsInfo = { core: boolean; mtu: number | null; control_service: ControlServiceInfo; discovery_service: DiscoveryServiceInfo; hummingbird: HbirdInfo | null; daemon: ScionDaemonInfo; endhost_api_bridge: EndhostApiBridgeInfo; border_routers: BorderRouterInfo[] }
+export type BorderRouterInfo = { name: string; internal_addr: string; interfaces: { [key in number]: BorderRouterInterfaceInfo } }
+export type BorderRouterInterfaceInfo = { isd_as: string; link_to: string; mtu: number | null; underlay_local: string; underlay_remote: string }
 export type ControlServiceInfo = { addr: string; name: string }
 export type DiscoveryServiceInfo = { addr: string; name: string }
+export type EndhostApiBridgeInfo = { addr: string }
 export type HbirdInfo = { id: string; reservation_duration: string; min_bandwidth: number; max_bandwidth: number; addr: string }
 export type Link = { a: LinkEndpoint; b: LinkEndpoint; link_type: LinkType }
 export type LinkEndpoint = { as_id: string; router_name: string; interface_id: number; underlay_local: string; underlay_remote: string }
