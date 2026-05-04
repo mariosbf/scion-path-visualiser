@@ -79,10 +79,13 @@ pub(crate) async fn get_paths(
         std::time::Duration::from_secs(10),
     );
 
-    let paths: Vec<scion_proto::path::Path> = fetcher
-        .fetch_paths(src_as.0, dst_as.0)
-        .await
-        .map_err(|e| format!("Failed to fetch paths: {e}"))?;
+    let paths: Vec<scion_proto::path::Path> = tokio::time::timeout(
+        std::time::Duration::from_secs(15),
+        fetcher.fetch_paths(src_as.0, dst_as.0),
+    )
+    .await
+    .map_err(|_| "Path fetch timed out after 15 seconds".to_string())?
+    .map_err(|e| format!("Failed to fetch paths: {e}"))?;
 
     info!("Fetched {} paths from {} to {}", paths.len(), src_as.0, dst_as.0);
 
