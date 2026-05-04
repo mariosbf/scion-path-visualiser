@@ -39,4 +39,7 @@ scion-sdk-observability = "0.5.2"
 tokio-util = "0.7.18"
 url = "2.5.8"
 tracing = "0.1.44"
+scion-stack = "0.5.2"
+endhost-api-client = "0.5.2"
+scion-sdk-reqwest-connect-rpc = "0.5.2"
 

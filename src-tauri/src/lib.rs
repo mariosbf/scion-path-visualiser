@@ -1,4 +1,5 @@
 pub mod ehapi_bridge;
+pub mod paths;
 pub mod topology;
 
 use std::collections::HashMap;

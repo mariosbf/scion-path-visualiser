@@ -5570,9 +5570,12 @@ name = "scion-path-visualiser"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "endhost-api-client",
  "glob",
  "scion-proto",
  "scion-sdk-observability",
+ "scion-sdk-reqwest-connect-rpc",
+ "scion-stack",
  "scionpings",
  "serde",
  "serde_json",
