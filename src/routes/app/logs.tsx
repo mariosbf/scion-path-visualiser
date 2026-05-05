@@ -100,7 +100,7 @@ export function ServiceLogsRoute() {
   }, [folder, serviceName, navigate]);
 
   return (
-    <Stack gap={0} style={{ height: "100%" }}>
+    <Stack gap={0} style={{ height: "100%", overflow: "hidden" }}>
       {/* Header bar */}
       <Group
         px="md"
@@ -172,7 +172,7 @@ export function ServiceLogsRoute() {
       <Divider />
 
       {/* Log output */}
-      <Box flex={1} p="md">
+      <Box flex={1} p="md" style={{ minHeight: 0, overflow: "hidden" }}>
         {error ? (
           <Text c="red" size="sm">
             {error}
