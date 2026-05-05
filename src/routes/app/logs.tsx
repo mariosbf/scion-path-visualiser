@@ -8,7 +8,7 @@ import {
   Stack,
   Text,
 } from "@mantine/core";
-import { IconArrowLeft } from "@tabler/icons-react";
+import { IconArrowLeft, IconTrash } from "@tabler/icons-react";
 import { listen } from "@tauri-apps/api/event";
 import { commands } from "../../bindings";
 import { session } from "../../lib/session";
@@ -61,7 +61,10 @@ export function ServiceLogsRoute() {
       const unlistenFn = await listen<LogOutputPayload>("log-output", (e) => {
         if (cancelled) return;
         if (e.payload.stream_id !== streamIdRef.current) return;
-        setLines((prev) => [...prev, e.payload.line]);
+        setLines((prev) => {
+          const next = [...prev, e.payload.line];
+          return next.length > 500 ? next.slice(-500) : next;
+        });
       });
 
       if (cancelled) {
@@ -121,21 +124,31 @@ export function ServiceLogsRoute() {
         <Text size="sm" c="dimmed">
           Logs
         </Text>
-        {streaming && (
-          <Box ml="auto" style={{ display: "flex", alignItems: "center", gap: 6 }}>
-            <Box
-              style={{
-                width: 8,
-                height: 8,
-                borderRadius: "50%",
-                background: "var(--mantine-color-green-5)",
-              }}
-            />
-            <Text size="xs" c="green">
-              Live
-            </Text>
-          </Box>
-        )}
+        <Box ml="auto" style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          {streaming && (
+            <>
+              <Box
+                style={{
+                  width: 8,
+                  height: 8,
+                  borderRadius: "50%",
+                  background: "var(--mantine-color-green-5)",
+                }}
+              />
+              <Text size="xs" c="green">
+                Live
+              </Text>
+            </>
+          )}
+          <ActionIcon
+            variant="default"
+            onClick={() => setLines([])}
+            aria-label="Clear logs"
+            title="Clear logs"
+          >
+            <IconTrash size={16} />
+          </ActionIcon>
+        </Box>
       </Group>
 
       {/* Meta strip */}
