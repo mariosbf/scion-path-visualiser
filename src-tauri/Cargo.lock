@@ -5785,7 +5785,7 @@ dependencies = [
 [[package]]
 name = "scionpings"
 version = "0.1.0"
-source = "git+ssh://github.com/jeltevanbommel/scion-ehapi-bridge.git#1e7cc9cb18d128cd0f13d31e0d4f906b48bb734d"
+source = "git+https://github.com/jeltevanbommel/scion-ehapi-bridge.git#1e7cc9cb18d128cd0f13d31e0d4f906b48bb734d"
 dependencies = [
  "anyhow",
  "async-trait",
