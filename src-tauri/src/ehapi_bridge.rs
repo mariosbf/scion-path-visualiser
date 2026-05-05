@@ -6,6 +6,7 @@ use std::{
 use scion_sdk_observability::metrics::registry::MetricsRegistry;
 use scionpings::endhost_api_bridge::{
     self,
+    config::UdpRouterRuntimeConfig,
     token_authority::{TokenAuthority, TokenIdentity},
 };
 use tauri::{Emitter, Manager};
@@ -75,9 +76,19 @@ pub fn start_ehapi_bridges(app: &tauri::AppHandle) -> Result<(), String> {
                     .to_string(),
             ),
             print_insecure_token: false,
-            udp_routers: as_info.border_routers.iter().map(|br| br.into()).collect(),
+            udp_routers: as_info
+                .border_routers
+                .iter()
+                .map(|br| UdpRouterRuntimeConfig {
+                    endpoint: br.internal_addr,
+                    interfaces: br.interfaces.keys().cloned().collect(),
+                    isd_ases: vec![isd_as.0],
+                })
+                .collect(),
             log_level: tracing::Level::DEBUG,
         };
+
+        info!("Config: {cfg:#?}");
         let token_authority = Arc::new(
             TokenAuthority::load_or_create(&cfg)
                 .map_err(|e| format!("Failed to load or create token authority: {e}"))?,

@@ -1,6 +1,5 @@
 use anyhow::Context;
 use scion_proto::address::IsdAsn;
-use scionpings::endhost_api_bridge::config::UdpRouterRuntimeConfig;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
@@ -46,16 +45,6 @@ pub struct BorderRouterInfo {
     pub name: String,
     pub internal_addr: std::net::SocketAddr,
     pub interfaces: HashMap<u16, BorderRouterInterfaceInfo>,
-}
-
-impl From<&BorderRouterInfo> for UdpRouterRuntimeConfig {
-    fn from(val: &BorderRouterInfo) -> Self {
-        UdpRouterRuntimeConfig {
-            endpoint: val.internal_addr,
-            interfaces: val.interfaces.keys().cloned().collect(),
-            isd_ases: vec![],
-        }
-    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
