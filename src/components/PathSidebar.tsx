@@ -62,7 +62,7 @@ export function PathSidebar({ topology, onHover, onSelect, selectedPath }: Props
       style={{
         width: 300,
         flexShrink: 0,
-        borderLeft: '1px solid var(--mantine-color-default-border)',
+        border: '1px solid var(--mantine-color-default-border)',
         display: 'flex',
         flexDirection: 'column',
         overflow: 'hidden',
