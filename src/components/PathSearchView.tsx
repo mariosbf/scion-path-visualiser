@@ -45,16 +45,16 @@ export function PathSearchView({ topology }: Props) {
 
   return (
     <div style={{ display: 'flex', width: '100%', height: '100%' }}>
-      <TopologyCanvas
-        topology={topology}
-        highlightedPath={highlightedPath}
-        onGraphReady={handleGraphReady}
-      />
       <PathSidebar
         topology={topology}
         onHover={handleHover}
         onSelect={handleSelect}
         selectedPath={pinnedPath}
+      />
+      <TopologyCanvas
+        topology={topology}
+        highlightedPath={highlightedPath}
+        onGraphReady={handleGraphReady}
       />
     </div>
   );

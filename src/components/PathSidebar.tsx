@@ -53,6 +53,8 @@ export function PathSidebar({ topology, onHover, onSelect, selectedPath }: Props
     };
   }, [srcAs, dstAs]);
 
+  const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
+
   const dstOptions = asIds.filter((id) => id !== srcAs);
 
   return (
@@ -127,13 +129,16 @@ export function PathSidebar({ topology, onHover, onSelect, selectedPath }: Props
                   cursor: 'pointer',
                   backgroundColor: isSelected
                     ? 'var(--mantine-color-blue-light)'
+                    : hoveredIndex === i
+                    ? 'var(--mantine-color-default-hover)'
                     : undefined,
                   borderColor: isSelected
                     ? 'var(--mantine-color-blue-5)'
                     : undefined,
+                  transition: 'background-color 0.15s ease',
                 }}
-                onMouseEnter={() => onHover(path)}
-                onMouseLeave={() => onHover(null)}
+                onMouseEnter={() => { onHover(path); setHoveredIndex(i); }}
+                onMouseLeave={() => { onHover(null); setHoveredIndex(null); }}
                 onClick={() => onSelect(isSelected ? null : path)}
               >
                 <Text size="sm" fw={500}>

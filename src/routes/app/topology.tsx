@@ -28,7 +28,7 @@ export function TopologyRoute() {
         <PathSearchView topology={topology} />
       )}
 
-      <Affix position={{ bottom: 20, left: 20 }}>
+      <Affix position={{ bottom: 20, right: 20 }}>
         <SegmentedControl
           value={mode}
           onChange={(v) => setMode(v as Mode)}
