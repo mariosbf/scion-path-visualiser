@@ -350,6 +350,8 @@ fn list_topology_files(folder: String) -> Result<Vec<String>, String> {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    let _ = rustls::crypto::aws_lc_rs::default_provider().install_default();
+
     let builder = Builder::<tauri::Wry>::new().commands(collect_commands![
         get_topology,
         setup_scion_network,

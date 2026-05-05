@@ -5572,6 +5572,7 @@ dependencies = [
  "anyhow",
  "endhost-api-client",
  "glob",
+ "rustls",
  "scion-proto",
  "scion-sdk-observability",
  "scion-sdk-reqwest-connect-rpc",
