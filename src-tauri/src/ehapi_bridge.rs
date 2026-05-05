@@ -88,7 +88,6 @@ pub fn start_ehapi_bridges(app: &tauri::AppHandle) -> Result<(), String> {
             log_level: tracing::Level::DEBUG,
         };
 
-        info!("Config: {cfg:#?}");
         let token_authority = Arc::new(
             TokenAuthority::load_or_create(&cfg)
                 .map_err(|e| format!("Failed to load or create token authority: {e}"))?,
