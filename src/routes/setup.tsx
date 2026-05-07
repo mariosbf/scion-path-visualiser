@@ -99,7 +99,7 @@ export function SetupWizard() {
       {/* Content */}
       <Flex flex={1} w="100%" justify="center" align="center">
         <Card w="70%" maw="1200px" h="70vh">
-          <Stack gap="xl">
+          <Stack>
             <BarStepper active={active} />
 
             <Stack gap="xs">
@@ -379,5 +379,5 @@ function LoadingStep({
     );
   }
 
-  return <TerminalOutput lines={lines} title={title} loading />;
+  return <TerminalOutput lines={lines} title={title} loading h={540} />;
 }

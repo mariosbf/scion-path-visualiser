@@ -1,71 +1,73 @@
-import { useEffect, useRef } from "react";
 import {
   Box,
-  Code,
+  BoxProps,
   Divider,
   Group,
   Loader,
   Paper,
-  ScrollArea,
+  PolymorphicComponentProps,
+  Stack,
   Text,
 } from "@mantine/core";
+import Editor from "@monaco-editor/react";
+import { useMemo } from "react";
 
-interface TerminalOutputProps {
+export type TerminalOutputProps = {
   lines: string[];
   title?: string;
   loading?: boolean;
-  height?: number | string;
-}
+} & PolymorphicComponentProps<"div", BoxProps>;
 
-export function TerminalOutput({ lines, title, loading, height }: TerminalOutputProps) {
-  const viewportRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (viewportRef.current) {
-      viewportRef.current.scrollTop = viewportRef.current.scrollHeight;
-    }
-  }, [lines]);
+export function TerminalOutput({
+  lines,
+  title,
+  loading,
+  ...props
+}: TerminalOutputProps) {
+  const output = useMemo(() => lines.join("\n"), [lines]);
 
   return (
-    <ScrollArea h={height ?? 500} viewportRef={viewportRef}>
-      <Paper radius="md" withBorder style={{ overflow: "hidden" }}>
-        {title !== undefined && (
-          <>
-            <Group justify="space-between" p="sm" bg="gray.9">
-              <Text size="sm">{title}</Text>
-              {loading && <Loader size="xs" />}
-            </Group>
-            <Divider />
-          </>
-        )}
-        <Group gap={0} align="stretch">
-          <Box
-            py="sm"
-            px="sm"
-            bg="gray.9"
-            style={{
-              borderRight: "1px solid var(--mantine-color-gray-7)",
-              userSelect: "none",
+    <Box {...props}>
+      <Paper radius="md" h="100%" withBorder style={{ overflow: "hidden" }}>
+        <Stack h="100%" gap={0}>
+          {/* Title bar */}
+          {title !== undefined && (
+            <>
+              <Group justify="space-between" p="xs">
+                <Text>{title}</Text>
+                {loading && <Loader size="xs" />}
+              </Group>
+              <Divider />
+            </>
+          )}
+
+          {/* Editor */}
+          <Editor
+            height="100%"
+            defaultLanguage="shell"
+            value={output}
+            theme="vs-dark"
+            options={{
+              readOnly: true,
+              wordWrap: "on",
+              minimap: { enabled: false },
+              lineNumbers: "on",
+              glyphMargin: false,
+              folding: false,
+              lineDecorationsWidth: 10,
+              lineNumbersMinChars: 4,
+              renderLineHighlight: "none",
+              scrollbar: {
+                verticalScrollbarSize: 8,
+                horizontalScrollbarSize: 8,
+              },
+              scrollBeyondLastLine: true,
+              automaticLayout: true,
+              domReadOnly: true,
             }}
-          >
-            {lines.map((_, i) => (
-              <Text
-                key={i}
-                size="xs"
-                ff="monospace"
-                c="dimmed"
-                ta="right"
-                lh={1.6}
-              >
-                {i + 1}
-              </Text>
-            ))}
-          </Box>
-          <Code block p="md" bg="gray.9" flex={1}>
-            {lines.length > 0 ? lines.join("\n") : "Running…"}
-          </Code>
-        </Group>
+          />
+        </Stack>
       </Paper>
-    </ScrollArea>
+    </Box>
   );
 }

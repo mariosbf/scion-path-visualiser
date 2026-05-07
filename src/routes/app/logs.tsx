@@ -1,13 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "@tanstack/react-router";
-import {
-  ActionIcon,
-  Box,
-  Divider,
-  Group,
-  Stack,
-  Text,
-} from "@mantine/core";
+import { ActionIcon, Box, Divider, Group, Stack, Text } from "@mantine/core";
 import { IconArrowLeft, IconTrash } from "@tabler/icons-react";
 import { listen } from "@tauri-apps/api/event";
 import { commands } from "../../bindings";
@@ -62,8 +55,7 @@ export function ServiceLogsRoute() {
         if (cancelled) return;
         if (e.payload.stream_id !== streamIdRef.current) return;
         setLines((prev) => {
-          const next = [...prev, e.payload.line];
-          return next.length > 500 ? next.slice(-500) : next;
+          return [...prev, e.payload.line];
         });
       });
 
@@ -80,7 +72,7 @@ export function ServiceLogsRoute() {
       }
       if (cancelled) {
         // Cleanup already ran while startLogStream was in-flight; stop the orphaned stream.
-        commands.stopLogStream(result.data).catch(() => {});
+        commands.stopLogStream(result.data).catch(() => { });
         return;
       }
       streamIdRef.current = result.data;
@@ -124,7 +116,10 @@ export function ServiceLogsRoute() {
         <Text size="sm" c="dimmed">
           Logs
         </Text>
-        <Box ml="auto" style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <Box
+          ml="auto"
+          style={{ display: "flex", alignItems: "center", gap: 8 }}
+        >
           {streaming && (
             <>
               <Box
@@ -191,7 +186,7 @@ export function ServiceLogsRoute() {
             {error}
           </Text>
         ) : (
-          <TerminalOutput lines={lines} height="100%" />
+          <TerminalOutput lines={lines} h="100%" />
         )}
       </Box>
     </Stack>
