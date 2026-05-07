@@ -30,22 +30,25 @@ interface WizardState {
   topoFile: string | null;
 }
 
-const STEPS = ["Implementation", "Topology", "Loading"];
-const STEP_LABELS = [
-  "Select SCION Implementation",
-  "Select Topology",
-  "Loading",
-];
-const STEP_DESCS = [
-  "Choose the root folder of your SCION project.",
-  "Choose the topology file to load.",
-  "Generating topology configuration…",
+const STEPS = [
+  {
+    label: "Implementation",
+    desc: "Choose the root folder of your SCION project.",
+  },
+  {
+    label: "Topology",
+    desc: "Choose the topology file to load.",
+  },
+  {
+    label: "Loading",
+    desc: "Setting everything up. This may take a few moments.",
+  },
 ];
 
 function BarStepper({ active }: { active: number }) {
   return (
     <Group gap={0} align="flex-start" grow>
-      {STEPS.map((label, i) => (
+      {STEPS.map((step, i) => (
         <Box key={i} style={{ paddingRight: i < STEPS.length - 1 ? 8 : 0 }}>
           <Box
             bg={i <= active ? "blue" : "white"}
@@ -60,7 +63,7 @@ function BarStepper({ active }: { active: number }) {
             fw={i === active ? 600 : 400}
             c={i > active ? "dimmed" : undefined}
           >
-            {label}
+            {step.label}
           </Text>
         </Box>
       ))}
@@ -103,10 +106,10 @@ export function SetupWizard() {
 
             <Stack gap="xs">
               <Title order={1} size="xl" fw={600}>
-                {STEP_LABELS[active]}
+                {STEPS[active].label}
               </Title>
               <Text size="sm" c="dimmed">
-                {STEP_DESCS[active]}
+                {STEPS[active].desc}
               </Text>
             </Stack>
 
@@ -195,7 +198,7 @@ function FolderStep({
   const [recentFolders, setRecentFolders] = useState<string[]>([]);
 
   useEffect(() => {
-    getRecent("recent-folders").then(setRecentFolders);
+    getRecent("recent-scion-folders").then(setRecentFolders);
   }, []);
 
   const browse = async () => {
@@ -244,10 +247,8 @@ function TopologyStep({
   onSelect: (topoFile: string) => void;
 }) {
   const [projectFiles, setProjectFiles] = useState<string[]>([]);
-  const [recentTopos, setRecentTopos] = useState<string[]>([]);
 
   useEffect(() => {
-    getRecent("recent-topologies").then(setRecentTopos);
     if (folder) {
       commands.listTopologyFiles(folder).then((result) => {
         if (result.status === "ok") setProjectFiles(result.data);
@@ -274,20 +275,10 @@ function TopologyStep({
         </Text>
       )}
       <Stack>
-        <Text>In project:</Text>
-        <ScrollArea h={150}>
+        <Text>In project</Text>
+        <ScrollArea h={400}>
           <PathRadioGroup
             paths={projectFiles}
-            selected={selected}
-            onSelect={onSelect}
-          />
-        </ScrollArea>
-      </Stack>
-      <Stack mt="md">
-        <Text>Recent topologies:</Text>
-        <ScrollArea h={150}>
-          <PathRadioGroup
-            paths={recentTopos}
             selected={selected}
             onSelect={onSelect}
           />
@@ -349,8 +340,7 @@ function LoadingStep({
         return;
       }
 
-      await pushRecent("recent-folders", folder);
-      await pushRecent("recent-topologies", topoFile);
+      await pushRecent("recent-scion-folders", folder);
       navigate({ to: "/app/topology" });
     }
 
@@ -366,6 +356,7 @@ function LoadingStep({
   if (error) {
     return (
       <Stack gap="md">
+        <TerminalOutput lines={lines} h={450} />
         <Text c="red" size="sm" style={{ wordBreak: "break-word" }}>
           {error}
         </Text>

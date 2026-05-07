@@ -3,7 +3,7 @@ import { Store } from "@tauri-apps/plugin-store";
 const STORE_FILE = "recent.json";
 const MAX_RECENT = 10;
 
-type StoreKey = "recent-folders" | "recent-topologies";
+type StoreKey = "recent-scion-folders";
 
 async function getStore() {
   return Store.load(STORE_FILE);
