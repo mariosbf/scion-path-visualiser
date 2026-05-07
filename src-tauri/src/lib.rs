@@ -1,135 +1,168 @@
 pub mod ehapi_bridge;
 pub mod paths;
 pub mod topology;
+pub mod util;
 
-use std::collections::HashMap;
-use std::path::Path;
-use std::sync::Mutex;
+use scion_proto::address::IsdAsn;
+use scionpings::endhost_api_bridge;
+use std::path::PathBuf;
+use std::sync::{Arc, Mutex};
+use std::{collections::HashMap, time::Duration};
 use tauri::{Emitter, Manager};
-use tauri_plugin_log::log::info;
+use tauri_plugin_log::log::debug;
 use tauri_specta::{collect_commands, Builder};
-use topology::{build_topology, IsdAsnDef, RawAsTopology, RawHbirdConfig, RawSdConfig, Topology};
 
-use crate::ehapi_bridge::{start_ehapi_bridges, EhapiBridgesState};
+use crate::ehapi_bridge::start_ehapi_bridges;
+use crate::topology::{load_topology, Topology};
+use crate::util::{clear_directory, copy_dir_all, stream_output};
+
+pub type AppState = Mutex<AppStateInner>;
+
+pub enum AppStateInner {
+    Setup,
+    Running(RunningState),
+}
 
 struct LogStreams(Mutex<HashMap<String, tokio::process::Child>>);
-pub(crate) struct TopologyState(pub(crate) Mutex<Option<Topology>>);
+
+impl AppStateInner {
+    pub fn setup(&self) -> Result<(), String> {
+        match self {
+            AppStateInner::Setup => Ok(()),
+            AppStateInner::Running(_) => Err("Not in setup state".to_string()),
+        }
+    }
+
+    pub fn running(&self) -> Result<&RunningState, String> {
+        match self {
+            AppStateInner::Setup => Err("Not in running state".to_string()),
+            AppStateInner::Running(state) => Ok(state),
+        }
+    }
+
+    pub fn running_mut(&mut self) -> Result<&mut RunningState, String> {
+        match self {
+            AppStateInner::Setup => Err("Not in running state".to_string()),
+            AppStateInner::Running(state) => Ok(state),
+        }
+    }
+}
+
+pub type EhapiBridgeMap = HashMap<IsdAsn, Arc<endhost_api_bridge::state::AppState>>;
+
+pub struct RunningState {
+    topology: Topology,
+    scion_folder: PathBuf,
+    ehapi_bridges: EhapiBridgeMap,
+}
 
 #[tauri::command]
 #[specta::specta]
-fn get_topology(state: tauri::State<'_, TopologyState>) -> Result<Topology, String> {
-    state
-        .0
-        .lock()
-        .unwrap()
-        .as_ref()
-        .ok_or_else(|| "Topology not loaded".to_string())
-        .cloned()
-}
+async fn setup_scion_network(
+    app: tauri::AppHandle,
+    state: tauri::State<'_, AppState>,
+    scion_folder: String,
+    topo_file: String,
+) -> Result<String, String> {
+    use std::process::Stdio;
 
-fn load_topology(app: &tauri::AppHandle, gen_dir: &Path) -> Result<(), String> {
-    info!(
-        "Loading topology from generated configs in {}",
-        gen_dir.display()
-    );
+    app.emit("scion-setup-phase", "Generating topology configuration…")
+        .ok();
 
-    let pattern = gen_dir
-        .join("AS*/topology.json")
+    // Generate topology
+    let mut child = tokio::process::Command::new("./scion.sh")
+        .args(["topology", "-c", &topo_file])
+        .current_dir(&scion_folder)
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .map_err(|e| format!("Failed to spawn scion.sh: {e}"))?;
+
+    stream_output(&app, &mut child, "scion-setup-output").await?;
+
+    let status = child
+        .wait()
+        .await
+        .map_err(|e| format!("Failed to wait for scion.sh topology: {e}"))?;
+
+    if !status.success() {
+        return Err(format!("scion.sh topology exited with status {status}"));
+    }
+
+    // Start SCION topology
+    app.emit("scion-setup-phase", "Starting SCION topology…")
+        .ok();
+
+    let mut child = tokio::process::Command::new("./scion.sh")
+        .args(["start"])
+        .current_dir(&scion_folder)
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .map_err(|e| format!("Failed to spawn scion.sh: {e}"))?;
+
+    stream_output(&app, &mut child, "scion-setup-output").await?;
+
+    let status = child
+        .wait()
+        .await
+        .map_err(|e| format!("Failed to wait for scion.sh start: {e}"))?;
+
+    if !status.success() {
+        return Err(format!("scion.sh start exited with status {status}"));
+    }
+
+    // Read topoology and store in state
+    let gen_dir = std::path::Path::new(&scion_folder).join("gen");
+    let topo = load_topology(&gen_dir).map_err(|e| format!("Failed to load topology: {e}"))?;
+
+    // Start endhost API bridges
+    app.emit(
+        "scion-setup-phase",
+        "Starting endhost API bridges".to_string(),
+    )
+    .ok();
+    let ehapi_token_dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| format!("Cannot resolve app data dir: {e}"))?
+        .join("ehapi-bridge-tokens");
+    let ehapi_bridges = start_ehapi_bridges(&ehapi_token_dir, &topo)?;
+
+    // Copy gen folder to backup location
+    let src_gen = std::path::Path::new(&scion_folder).join("gen");
+    let app_data_dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| format!("Cannot resolve app data dir: {e}"))?;
+    let project_name = std::path::Path::new(&scion_folder)
+        .file_name()
+        .and_then(|n| n.to_str())
+        .unwrap_or("project");
+    let dst_gen = app_data_dir.join("projects").join(project_name).join("gen");
+
+    clear_directory(&dst_gen)?;
+    copy_dir_all(&src_gen, &dst_gen)?;
+
+    dst_gen
         .to_str()
-        .ok_or_else(|| {
-            format!(
-                "Generated directory path contains invalid Unicode: {}",
-                gen_dir.display()
-            )
-        })?
-        .to_string();
-    let mut hbird_map: HashMap<IsdAsnDef, RawHbirdConfig> = HashMap::new();
-    let mut sd_map: HashMap<IsdAsnDef, RawSdConfig> = HashMap::new();
-    let raw_ases: Vec<RawAsTopology> = glob::glob(&pattern)
-        .map_err(|e| format!("Invalid glob pattern: {e}"))?
-        .map(|entry| {
-            let path = entry.map_err(|e| e.to_string())?;
-            let content = std::fs::read_to_string(&path)
-                .map_err(|e| format!("Failed to read {}: {e}", path.display()))?;
-            let raw_as = serde_json::from_str::<RawAsTopology>(&content)
-                .map_err(|e| format!("Failed to parse {}: {e}", path.display()))?;
+        .map(|s: &str| s.to_string())
+        .ok_or_else(|| "Generated path contains invalid Unicode".to_string())?;
 
-            if let Some(dir) = path.parent() {
-                let hbird_path = dir.join("hbird.toml");
-                if hbird_path.exists() {
-                    match std::fs::read_to_string(&hbird_path) {
-                        Ok(hbird_content) => {
-                            match toml::from_str::<RawHbirdConfig>(&hbird_content) {
-                                Ok(hb) => {
-                                    hbird_map.insert(raw_as.isd_as, hb);
-                                }
-                                Err(e) => {
-                                    eprintln!("Failed to parse {}: {e}", hbird_path.display());
-                                }
-                            }
-                        }
-                        Err(e) => {
-                            eprintln!("Failed to read {}: {e}", hbird_path.display());
-                        }
-                    }
-                }
+    // Set application state to running
+    *state.lock().unwrap() = AppStateInner::Running(RunningState {
+        topology: topo,
+        scion_folder: std::path::PathBuf::from(scion_folder),
+        ehapi_bridges,
+    });
 
-                // sd.toml is required (unlike hbird.toml which is optional):
-                // absence defers to build_topology error; read/parse failure is immediate.
-                let sd_path = dir.join("sd.toml");
-                if sd_path.exists() {
-                    let sd_content = std::fs::read_to_string(&sd_path)
-                        .map_err(|e| format!("Failed to read {}: {e}", sd_path.display()))?;
-                    let sd = toml::from_str::<RawSdConfig>(&sd_content)
-                        .map_err(|e| format!("Failed to parse {}: {e}", sd_path.display()))?;
-                    sd_map.insert(raw_as.isd_as, sd);
-                }
-            }
-
-            Ok(raw_as)
-        })
-        .collect::<Result<Vec<_>, String>>()?;
-
-    let topo = build_topology(raw_ases, hbird_map, sd_map)
-        .map_err(|e| format!("Failed to build topology: {e}"))?;
-
-    let topo_state = app.state::<TopologyState>();
-    let mut topo_guard = topo_state.0.lock().unwrap();
-    *topo_guard = Some(topo);
-
-    Ok(())
+    Ok("SCION network setup complete".to_string())
 }
 
-async fn stream_output(
-    app: &tauri::AppHandle,
-    child: &mut tokio::process::Child,
-    event: &str,
-) -> Result<(), String> {
-    use tokio::io::{AsyncBufReadExt, BufReader};
-
-    let stdout = child.stdout.take().ok_or("stdout not piped")?;
-    let stderr = child.stderr.take().ok_or("stderr not piped")?;
-
-    let app_out = app.clone();
-    let event_out = event.to_owned();
-    let stdout_task = tokio::spawn(async move {
-        let mut lines = BufReader::new(stdout).lines();
-        while let Ok(Some(line)) = lines.next_line().await {
-            app_out.emit(&event_out, line).ok();
-        }
-    });
-
-    let app_err = app.clone();
-    let event_err = event.to_owned();
-    let stderr_task = tokio::spawn(async move {
-        let mut lines = BufReader::new(stderr).lines();
-        while let Ok(Some(line)) = lines.next_line().await {
-            app_err.emit(&event_err, line).ok();
-        }
-    });
-
-    let _ = tokio::join!(stdout_task, stderr_task);
-    Ok(())
+#[tauri::command]
+#[specta::specta]
+fn get_topology(state: tauri::State<'_, AppState>) -> Result<Topology, String> {
+    Ok(state.lock().unwrap().running()?.topology.clone())
 }
 
 #[derive(serde::Serialize, Clone)]
@@ -142,21 +175,26 @@ struct LogOutputPayload {
 #[specta::specta]
 async fn start_log_stream(
     app: tauri::AppHandle,
-    state: tauri::State<'_, LogStreams>,
-    folder: String,
+    app_state: tauri::State<'_, AppState>,
+    log_state: tauri::State<'_, LogStreams>,
     service_name: String,
 ) -> Result<String, String> {
     use std::process::Stdio;
     use tokio::io::{AsyncBufReadExt, BufReader};
 
-    let log_path = std::path::Path::new(&folder)
-        .join("logs")
-        .join(format!("{service_name}.log"));
+    let log_path = {
+        let state = app_state.lock().unwrap();
+        let folder = state.running()?.scion_folder.clone();
+        std::path::Path::new(&folder)
+            .join("logs")
+            .join(format!("{service_name}.log"))
+    };
 
     if !log_path.exists() {
         return Err(format!("Log file not found: {}", log_path.display()));
     }
 
+    debug!("Reading log: {}", log_path.to_str().unwrap());
     let mut child = tokio::process::Command::new("tail")
         .args([
             "-n",
@@ -176,13 +214,16 @@ async fn start_log_stream(
     let stream_id = uuid::Uuid::new_v4().to_string();
 
     {
-        let mut map = state.0.lock().unwrap();
+        let mut map = log_state.0.lock().unwrap();
         map.insert(stream_id.clone(), child);
     }
 
     let app_clone = app.clone();
     let sid = stream_id.clone();
     tokio::spawn(async move {
+        // Give frontend a little time to start reading the stream
+        tokio::time::sleep(Duration::from_millis(50)).await;
+
         let mut lines = BufReader::new(stdout).lines();
         while let Ok(Some(line)) = lines.next_line().await {
             app_clone
@@ -211,119 +252,33 @@ async fn stop_log_stream(
         map.remove(&stream_id)
             .ok_or_else(|| format!("Stream not found: {stream_id}"))?
     }; // lock dropped here before await
-       // Ignore errors from kill() — process may have already exited
+
+    // Ignore errors from kill() — process may have already exited
     let _ = child.kill().await;
+
     // Reap the child to avoid zombie processes
     let _ = child.wait().await;
+
     Ok(())
 }
 
-#[tauri::command]
-#[specta::specta]
-async fn setup_scion_network(
-    app: tauri::AppHandle,
-    folder: String,
-    topo_file: String,
-) -> Result<String, String> {
-    use std::process::Stdio;
-
-    app.emit("scion-setup-phase", "Generating topology configuration…")
-        .ok();
-
-    // Generate topology
-    let mut child = tokio::process::Command::new("./scion.sh")
-        .args(["topology", "-c", &topo_file])
-        .current_dir(&folder)
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn()
-        .map_err(|e| format!("Failed to spawn scion.sh: {e}"))?;
-
-    stream_output(&app, &mut child, "scion-setup-output").await?;
-
-    let status = child
-        .wait()
-        .await
-        .map_err(|e| format!("Failed to wait for scion.sh topology: {e}"))?;
-
-    if !status.success() {
-        return Err(format!("scion.sh topology exited with status {status}"));
-    }
-
-    // Start SCION topology
-    app.emit("scion-setup-phase", "Starting SCION topology…")
-        .ok();
-
-    let mut child = tokio::process::Command::new("./scion.sh")
-        .args(["start"])
-        .current_dir(&folder)
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn()
-        .map_err(|e| format!("Failed to spawn scion.sh: {e}"))?;
-
-    stream_output(&app, &mut child, "scion-setup-output").await?;
-
-    let status = child
-        .wait()
-        .await
-        .map_err(|e| format!("Failed to wait for scion.sh start: {e}"))?;
-
-    if !status.success() {
-        return Err(format!("scion.sh start exited with status {status}"));
-    }
-
-    // Read topoology and store in state
-    let gen_dir = std::path::Path::new(&folder).join("gen");
-    load_topology(&app, &gen_dir).map_err(|e| format!("Failed to load topology: {e}"))?;
-
-    // Start endhost API bridges
-    start_ehapi_bridges(&app)?;
-
-    // Copy gen folder to backup location
-    let src_gen = std::path::Path::new(&folder).join("gen");
-    let app_data_dir = app
-        .path()
-        .app_data_dir()
-        .map_err(|e| format!("Cannot resolve app data dir: {e}"))?;
-    let project_name = std::path::Path::new(&folder)
-        .file_name()
-        .and_then(|n| n.to_str())
-        .unwrap_or("project");
-    let dst_gen = app_data_dir.join("projects").join(project_name).join("gen");
-
-    clear_directory(&dst_gen)?;
-    copy_dir_all(&src_gen, &dst_gen)?;
-
-    dst_gen
-        .to_str()
-        .map(|s: &str| s.to_string())
-        .ok_or_else(|| "Generated path contains invalid Unicode".to_string())
-}
-
-fn clear_directory(path: &std::path::Path) -> Result<(), String> {
-    if path.exists() {
-        std::fs::remove_dir_all(path)
-            .map_err(|e| format!("Cannot clear {}: {e}", path.display()))?;
-    }
-    Ok(())
-}
-
-fn copy_dir_all(src: &std::path::Path, dst: &std::path::Path) -> Result<(), String> {
-    std::fs::create_dir_all(dst).map_err(|e| format!("Cannot create {}: {e}", dst.display()))?;
-    for entry in
-        std::fs::read_dir(src).map_err(|e| format!("Cannot read {}: {e}", src.display()))?
-    {
-        let entry = entry.map_err(|e| e.to_string())?;
-        let ty = entry.file_type().map_err(|e| e.to_string())?;
-        if ty.is_dir() {
-            copy_dir_all(&entry.path(), &dst.join(entry.file_name()))?;
-        } else {
-            std::fs::copy(entry.path(), dst.join(entry.file_name())).map_err(|e| e.to_string())?;
-        }
-    }
-    Ok(())
-}
+// #[tauri::command]
+// #[specta::specta]
+// async fn stop_scion_network(state: tauri::State<'_, ScionFolder>) -> Result<(), String> {
+//     let folder = state.0.lock().unwrap().take();
+//     if let Some(folder) = folder {
+//         let status = tokio::process::Command::new("./scion.sh")
+//             .args(["stop"])
+//             .current_dir(&folder)
+//             .status()
+//             .await
+//             .map_err(|e| format!("Failed to spawn scion.sh stop: {e}"))?;
+//         if !status.success() {
+//             return Err(format!("scion.sh stop exited with {status}"));
+//         }
+//     }
+//     Ok(())
+// }
 
 #[tauri::command]
 #[specta::specta]
@@ -388,18 +343,30 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_store::Builder::default().build())
         .manage(LogStreams(Mutex::new(HashMap::new())))
-        .manage(TopologyState(Mutex::new(None)))
-        .manage(EhapiBridgesState(Mutex::new(HashMap::new())))
+        .manage(Mutex::new(AppStateInner::Setup))
         .invoke_handler(builder.invoke_handler())
         .build(tauri::generate_context!())
         .expect("error building tauri application")
         .run(|app, event| {
             if let tauri::RunEvent::Exit = event {
-                let state = app.state::<EhapiBridgesState>();
-                let map = state.0.lock().unwrap();
-                for bridge in map.values() {
-                    bridge.cancel.cancel();
+                let state = app.state::<AppState>();
+                let state = state.lock().unwrap();
+                if let AppStateInner::Running(running) = &*state {
+                    debug!("Stopping SCION network…");
+                    for bridge in running.ehapi_bridges.values() {
+                        bridge.cancel.cancel();
+                    }
                 }
+                // let folder = app.state::<AppState>().lock().unwrap()
+                //     .running()?
+                //     .scion_folder
+                //     .clone();
+                // if let Some(folder) = folder {
+                //     let _ = std::process::Command::new("./scion.sh")
+                //         .args(["stop"])
+                //         .current_dir(&folder)
+                //         .status();
+                // }
             }
         });
 }

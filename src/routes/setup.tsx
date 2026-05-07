@@ -21,7 +21,6 @@ import { useNavigate } from "@tanstack/react-router";
 import { commands } from "../bindings";
 import { TerminalOutput } from "../components/TerminalOutput";
 import { getRecent, pushRecent } from "../lib/store";
-import { session } from "../lib/session";
 import logo from "../assets/logo.png";
 import classes from "./Setup.module.css";
 import { IconArrowLeft } from "@tabler/icons-react";
@@ -352,8 +351,6 @@ function LoadingStep({
 
       await pushRecent("recent-folders", folder);
       await pushRecent("recent-topologies", topoFile);
-      session.setFolder(folder);
-      session.setTopology(topoResult.data);
       navigate({ to: "/app/topology" });
     }
 

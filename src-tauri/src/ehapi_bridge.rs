@@ -1,7 +1,4 @@
-use std::{
-    collections::HashMap,
-    sync::{Arc, Mutex},
-};
+use std::{collections::HashMap, path::Path, sync::Arc};
 
 use scion_sdk_observability::metrics::registry::MetricsRegistry;
 use scionpings::endhost_api_bridge::{
@@ -9,45 +6,26 @@ use scionpings::endhost_api_bridge::{
     config::UdpRouterRuntimeConfig,
     token_authority::{TokenAuthority, TokenIdentity},
 };
-use tauri::{Emitter, Manager};
-use tauri_plugin_log::log::info;
+use tauri_plugin_log::log::debug;
 use tokio_util::sync::CancellationToken;
 use url::Url;
 
-use crate::{topology::IsdAsnDef, TopologyState};
+use crate::{
+    topology::{IsdAsnDef, Topology},
+    AppState, EhapiBridgeMap,
+};
 
-pub struct EhapiBridgesState(
-    pub Mutex<HashMap<IsdAsnDef, Arc<endhost_api_bridge::state::AppState>>>,
-);
-
-pub fn start_ehapi_bridges(app: &tauri::AppHandle) -> Result<(), String> {
-    let topo_state = app.state::<TopologyState>();
-    let topo_mutex = topo_state.0.lock().unwrap();
-    let topology = topo_mutex
-        .as_ref()
-        .ok_or_else(|| "Topology not loaded".to_string())?;
-
-    info!(
-        "Topology ASes: {:?}",
-        topology.ases.keys().map(|k| k.0).collect::<Vec<_>>()
-    );
-
-    let app_data_dir = app
-        .path()
-        .app_data_dir()
-        .map_err(|e| format!("Cannot resolve app data dir: {e}"))?;
-    let token_dir = app_data_dir.join("ehapi-bridge-tokens");
+pub fn start_ehapi_bridges(
+    token_dir: &Path,
+    topology: &Topology,
+) -> Result<EhapiBridgeMap, String> {
+    let mut map = HashMap::new();
 
     for (isd_as, as_info) in topology.ases.iter() {
-        info!(
+        debug!(
             "Setting up endhost API bridge for AS {} with control service at {}",
             isd_as.0, as_info.control_service.addr
         );
-        app.emit(
-            "scion-setup-phase",
-            format!("Starting endhost API bridge for AS {}…", isd_as.0),
-        )
-        .ok();
 
         // Derive from control_service.addr
         let control_plane_url = Url::parse(&format!("http://{}", as_info.control_service.addr))
@@ -101,11 +79,7 @@ pub fn start_ehapi_bridges(app: &tauri::AppHandle) -> Result<(), String> {
             cancel: cancellation_token.clone(),
         });
 
-        app.state::<EhapiBridgesState>()
-            .0
-            .lock()
-            .unwrap()
-            .insert(*isd_as, ehapi_app_state.clone());
+        map.insert(isd_as.0, ehapi_app_state.clone());
 
         #[allow(clippy::clone_on_copy)]
         let isd_as = isd_as.clone();
@@ -123,28 +97,26 @@ pub fn start_ehapi_bridges(app: &tauri::AppHandle) -> Result<(), String> {
         });
     }
 
-    Ok(())
+    Ok(map)
 }
 
 #[tauri::command]
 #[specta::specta]
 pub fn mint_token(
-    state: tauri::State<'_, EhapiBridgesState>,
+    state: tauri::State<'_, AppState>,
     isd_as: IsdAsnDef,
     ttl_seconds: u32,
 ) -> Result<String, String> {
-    let map = state.0.lock().unwrap();
-    info!(
-        "Map keys: {:?}",
-        map.keys().map(|k| k.0).collect::<Vec<_>>()
-    );
-    info!(
+    let state = state.lock().unwrap();
+    let map = &state.running()?.ehapi_bridges;
+
+    debug!(
         "Requested token minting for AS {}, TTL {} seconds",
         isd_as.0, ttl_seconds
     );
 
     let app_state = map
-        .get(&isd_as)
+        .get(&isd_as.0)
         .ok_or_else(|| format!("No endhost API bridge for AS {}", isd_as.0))?;
 
     let expires_at = std::time::SystemTime::now()

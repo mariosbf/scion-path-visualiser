@@ -3,8 +3,7 @@ import { useNavigate, useParams } from "@tanstack/react-router";
 import { ActionIcon, Box, Divider, Group, Stack, Text } from "@mantine/core";
 import { IconArrowLeft, IconTrash } from "@tabler/icons-react";
 import { listen } from "@tauri-apps/api/event";
-import { commands } from "../../bindings";
-import { session } from "../../lib/session";
+import { commands, type Topology } from "../../bindings";
 import { TerminalOutput } from "../../components/TerminalOutput";
 
 interface LogOutputPayload {
@@ -15,8 +14,7 @@ interface LogOutputPayload {
 export function ServiceLogsRoute() {
   const navigate = useNavigate();
   const { serviceName } = useParams({ from: "/app/logs/$serviceName" });
-  const folder = session.getFolder();
-  const topology = session.getTopology();
+  const [topology, setTopology] = useState<Topology | null>(null);
 
   const [lines, setLines] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -42,11 +40,16 @@ export function ServiceLogsRoute() {
   }
 
   useEffect(() => {
-    if (!folder) {
-      navigate({ to: "/setup" });
-      return;
-    }
+    commands.getTopology().then((result) => {
+      if (result.status === "ok") {
+        setTopology(result.data);
+      } else {
+        navigate({ to: "/setup" });
+      }
+    });
+  }, [navigate]);
 
+  useEffect(() => {
     let cancelled = false;
     let unlisten: (() => void) | undefined;
 
@@ -65,7 +68,7 @@ export function ServiceLogsRoute() {
       }
       unlisten = unlistenFn;
 
-      const result = await commands.startLogStream(folder!, serviceName);
+      const result = await commands.startLogStream(serviceName);
       if (result.status === "error") {
         if (!cancelled) setError(result.error);
         return;
@@ -92,7 +95,7 @@ export function ServiceLogsRoute() {
         streamIdRef.current = null;
       }
     };
-  }, [folder, serviceName, navigate]);
+  }, [serviceName, navigate]);
 
   return (
     <Stack gap={0} style={{ height: "100%", overflow: "hidden" }}>

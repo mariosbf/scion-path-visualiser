@@ -1,4 +1,4 @@
-import { Button, Divider, Stack } from "@mantine/core";
+import { Button, Stack } from "@mantine/core";
 import { IconFileText } from "@tabler/icons-react";
 import type { ReactNode } from "react";
 import { useNavigate } from "@tanstack/react-router";
@@ -10,18 +10,18 @@ interface Props {
   children?: ReactNode;
 }
 
-export function ServiceDrawerContent({ fields, logsServiceName, children }: Props) {
+export function ServiceDrawerContent({
+  fields,
+  logsServiceName,
+  children,
+}: Props) {
   const navigate = useNavigate();
   return (
     <Stack gap="sm">
       {fields.map((f) => (
         <InfoItem key={f.label} label={f.label} value={f.value} />
       ))}
-      {children && (
-        <>
-          {children}
-        </>
-      )}
+      {children && <>{children}</>}
       <Button
         variant="light"
         leftSection={<IconFileText size={14} />}

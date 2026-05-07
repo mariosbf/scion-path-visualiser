@@ -8,7 +8,9 @@ const stubAs = (core: boolean) => ({
   control_service: { addr: "127.0.0.1:31000", name: "cs1" },
   discovery_service: { addr: "127.0.0.1:31000", name: "cs1" },
   hummingbird: null,
-  daemon: { id: "sd1" },
+  daemon: { id: "sd1", address: "127.0.0.1:30255", api_addr: "127.0.0.1:30255" },
+  endhost_api_bridge: { addr: "127.0.0.1:30041" },
+  border_routers: [],
 });
 
 const tinyTopology: Topology = {

@@ -9,7 +9,7 @@ import { SetupWizard } from "./routes/setup";
 import { AppLayout } from "./routes/app";
 import { TopologyRoute } from "./routes/app/topology";
 import { ServiceLogsRoute } from "./routes/app/logs";
-import { session } from "./lib/session";
+import { commands } from "./bindings";
 
 const rootRoute = createRootRoute({ component: () => <Outlet /> });
 
@@ -24,8 +24,9 @@ const indexRoute = createRoute({
 const setupRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/setup",
-  beforeLoad: () => {
-    if (session.getTopology()) {
+  beforeLoad: async () => {
+    const result = await commands.getTopology();
+    if (result.status === "ok") {
       throw redirect({ to: "/app/topology" });
     }
   },

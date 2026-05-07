@@ -13,9 +13,9 @@ async getTopology() : Promise<Result<Topology, string>> {
     else return { status: "error", error: e  as any };
 }
 },
-async setupScionNetwork(folder: string, topoFile: string) : Promise<Result<string, string>> {
+async setupScionNetwork(scionFolder: string, topoFile: string) : Promise<Result<string, string>> {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("setup_scion_network", { folder, topoFile }) };
+    return { status: "ok", data: await TAURI_INVOKE("setup_scion_network", { scionFolder, topoFile }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
@@ -29,9 +29,9 @@ async listTopologyFiles(folder: string) : Promise<Result<string[], string>> {
     else return { status: "error", error: e  as any };
 }
 },
-async startLogStream(folder: string, serviceName: string) : Promise<Result<string, string>> {
+async startLogStream(serviceName: string) : Promise<Result<string, string>> {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("start_log_stream", { folder, serviceName }) };
+    return { status: "ok", data: await TAURI_INVOKE("start_log_stream", { serviceName }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };

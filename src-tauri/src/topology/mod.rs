@@ -1,7 +1,7 @@
 use anyhow::Context;
 use scion_proto::address::IsdAsn;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::{collections::HashMap, path::Path};
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -361,7 +361,7 @@ pub fn build_topology(
                 )
             })?;
 
-        let mut ehapi_addr = control_service_info.addr; 
+        let mut ehapi_addr = control_service_info.addr;
         ehapi_addr.set_port(EHAPI_BRIDGE_PORT);
 
         let endhost_api_bridge = EndhostApiBridgeInfo { addr: ehapi_addr };
@@ -389,6 +389,68 @@ pub fn build_topology(
     }
 
     Ok(Topology { ases, links })
+}
+
+pub fn load_topology(gen_dir: &Path) -> Result<Topology, String> {
+    let pattern = gen_dir
+        .join("AS*/topology.json")
+        .to_str()
+        .ok_or_else(|| {
+            format!(
+                "Generated directory path contains invalid Unicode: {}",
+                gen_dir.display()
+            )
+        })?
+        .to_string();
+    let mut hbird_map: HashMap<IsdAsnDef, RawHbirdConfig> = HashMap::new();
+    let mut sd_map: HashMap<IsdAsnDef, RawSdConfig> = HashMap::new();
+    let raw_ases: Vec<RawAsTopology> = glob::glob(&pattern)
+        .map_err(|e| format!("Invalid glob pattern: {e}"))?
+        .map(|entry| {
+            let path = entry.map_err(|e| e.to_string())?;
+            let content = std::fs::read_to_string(&path)
+                .map_err(|e| format!("Failed to read {}: {e}", path.display()))?;
+            let raw_as = serde_json::from_str::<RawAsTopology>(&content)
+                .map_err(|e| format!("Failed to parse {}: {e}", path.display()))?;
+
+            if let Some(dir) = path.parent() {
+                let hbird_path = dir.join("hbird.toml");
+                if hbird_path.exists() {
+                    match std::fs::read_to_string(&hbird_path) {
+                        Ok(hbird_content) => {
+                            match toml::from_str::<RawHbirdConfig>(&hbird_content) {
+                                Ok(hb) => {
+                                    hbird_map.insert(raw_as.isd_as, hb);
+                                }
+                                Err(e) => {
+                                    eprintln!("Failed to parse {}: {e}", hbird_path.display());
+                                }
+                            }
+                        }
+                        Err(e) => {
+                            eprintln!("Failed to read {}: {e}", hbird_path.display());
+                        }
+                    }
+                }
+
+                // sd.toml is required (unlike hbird.toml which is optional):
+                // absence defers to build_topology error; read/parse failure is immediate.
+                let sd_path = dir.join("sd.toml");
+                if sd_path.exists() {
+                    let sd_content = std::fs::read_to_string(&sd_path)
+                        .map_err(|e| format!("Failed to read {}: {e}", sd_path.display()))?;
+                    let sd = toml::from_str::<RawSdConfig>(&sd_content)
+                        .map_err(|e| format!("Failed to parse {}: {e}", sd_path.display()))?;
+                    sd_map.insert(raw_as.isd_as, sd);
+                }
+            }
+
+            Ok(raw_as)
+        })
+        .collect::<Result<Vec<_>, String>>()?;
+
+    build_topology(raw_ases, hbird_map, sd_map)
+        .map_err(|e| format!("Failed to build topology: {e}"))
 }
 
 #[cfg(test)]

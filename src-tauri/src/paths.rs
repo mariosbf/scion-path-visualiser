@@ -2,15 +2,13 @@ use std::sync::Arc;
 
 use endhost_api_client::client::CrpcEndhostApiClient;
 use scion_sdk_reqwest_connect_rpc::token_source::static_token::StaticTokenSource;
-use scion_stack::path::fetcher::{
-    traits::PathFetcher, EndhostApiSegmentFetcher, PathFetcherImpl,
-};
+use scion_stack::path::fetcher::{traits::PathFetcher, EndhostApiSegmentFetcher, PathFetcherImpl};
 use scionpings::endhost_api_bridge::token_authority::TokenIdentity;
-use specta::Type;
 use serde::{Deserialize, Serialize};
+use specta::Type;
 use tauri_plugin_log::log::info;
 
-use crate::{topology::IsdAsnDef, EhapiBridgesState, TopologyState};
+use crate::{topology::IsdAsnDef, AppState};
 
 #[derive(Clone, Debug, Serialize, Deserialize, Type)]
 pub struct ScionPathInterface {
@@ -28,15 +26,14 @@ pub struct ScionPath {
 #[tauri::command]
 #[specta::specta]
 pub(crate) async fn get_paths(
-    topology_state: tauri::State<'_, TopologyState>,
-    bridges: tauri::State<'_, EhapiBridgesState>,
+    state: tauri::State<'_, AppState>,
     src_as: IsdAsnDef,
     dst_as: IsdAsnDef,
 ) -> Result<Vec<ScionPath>, String> {
     // 1. Look up ehapi bridge address from topology
     let ehapi_addr = {
-        let topo = topology_state.0.lock().unwrap();
-        let topo = topo.as_ref().ok_or("Topology not loaded")?;
+        let state = state.lock().unwrap();
+        let topo = &state.running()?.topology;
         topo.ases
             .get(&src_as)
             .ok_or_else(|| format!("No AS info for {}", src_as.0))?
@@ -48,9 +45,10 @@ pub(crate) async fn get_paths(
 
     // 2. Mint a short-lived token for the src AS
     let token = {
-        let map = bridges.0.lock().unwrap();
+        let state = state.lock().unwrap();
+        let map = &state.running()?.ehapi_bridges;
         let app_state = map
-            .get(&src_as)
+            .get(&src_as.0)
             .ok_or_else(|| format!("No endhost API bridge for AS {}", src_as.0))?;
         let expires_at = std::time::SystemTime::now()
             .checked_add(std::time::Duration::from_secs(60))
@@ -87,7 +85,12 @@ pub(crate) async fn get_paths(
     .map_err(|_| "Path fetch timed out after 15 seconds".to_string())?
     .map_err(|e| format!("Failed to fetch paths: {e}"))?;
 
-    info!("Fetched {} paths from {} to {}", paths.len(), src_as.0, dst_as.0);
+    info!(
+        "Fetched {} paths from {} to {}",
+        paths.len(),
+        src_as.0,
+        dst_as.0
+    );
 
     // 5. Convert to ScionPath
     let result = paths
