@@ -16,6 +16,7 @@ use crate::{
 };
 
 pub fn start_ehapi_bridges(
+    log_folder: &Path,
     token_dir: &Path,
     topology: &Topology,
 ) -> Result<EhapiBridgeMap, String> {
@@ -84,17 +85,40 @@ pub fn start_ehapi_bridges(
         #[allow(clippy::clone_on_copy)]
         let isd_as = isd_as.clone();
 
-        tokio::spawn(async move {
-            // TODO: handle error appropriately
-            let _ = scionpings::endhost_api_bridge::server::run(ehapi_app_state, cfg)
-                .await
-                .map_err(|e| {
-                    format!(
-                        "Failed to start endhost API bridge for AS {}: {e}",
-                        isd_as.0
-                    )
+        let log_file = log_folder.join(format!("ehapi-bridge-{}.log", isd_as.0));
+        let log_file = std::fs::File::create(&log_file)
+            .map_err(|e| format!("Failed to create log file for AS {}: {e}", isd_as.0))?;
+        let (non_blocking_writer, guard) = tracing_appender::non_blocking(log_file);
+
+        std::thread::Builder::new()
+            .name(format!("ehapi-bridge-{}", isd_as.0))
+            .spawn(move || {
+                let subscriber = tracing_subscriber::fmt()
+                    .with_max_level(tracing::Level::DEBUG)
+                    .with_writer(non_blocking_writer)
+                    .with_ansi(false)
+                    .finish();
+
+                let _enter = tracing::subscriber::set_default(subscriber);
+                let _guard = guard;
+
+                let rt = tokio::runtime::Builder::new_current_thread()
+                    .enable_all()
+                    .build()
+                    .expect("Failed to build per-AS Tokio runtime");
+
+                rt.block_on(async move {
+                    let _ = scionpings::endhost_api_bridge::server::run(ehapi_app_state, cfg)
+                        .await
+                        .map_err(|e| {
+                            format!(
+                                "Failed to start endhost API bridge for AS {}: {e}",
+                                isd_as.0
+                            )
+                        });
                 });
-        });
+            })
+            .map_err(|e| format!("Failed to spawn bridge thread for AS {}: {e}", isd_as.0))?;
     }
 
     Ok(map)

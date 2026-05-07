@@ -52,7 +52,7 @@ export function EndhostApiBridgeDrawer({
       {activeAsData && (
         <ServiceDrawerContent
           fields={[{ label: "Address", value: activeAsData.ehapi_bridge.addr }]}
-          logsServiceName={`${activeAsData.asId}-ehapi-bridge`}
+          logsServiceName={`ehapi-bridge-${activeAsData.asId}`}
         >
           <Stack>
             <Button variant="light" loading={loading} onClick={handleMintToken}>

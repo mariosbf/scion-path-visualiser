@@ -66,6 +66,8 @@ async fn setup_scion_network(
 ) -> Result<String, String> {
     use std::process::Stdio;
 
+    let scion_folder = std::path::Path::new(&scion_folder);
+
     app.emit("scion-setup-phase", "Generating topology configuration…")
         .ok();
 
@@ -113,7 +115,7 @@ async fn setup_scion_network(
     }
 
     // Read topoology and store in state
-    let gen_dir = std::path::Path::new(&scion_folder).join("gen");
+    let gen_dir = scion_folder.join("gen");
     let topo = load_topology(&gen_dir).map_err(|e| format!("Failed to load topology: {e}"))?;
 
     // Start endhost API bridges
@@ -127,7 +129,9 @@ async fn setup_scion_network(
         .app_data_dir()
         .map_err(|e| format!("Cannot resolve app data dir: {e}"))?
         .join("ehapi-bridge-tokens");
-    let ehapi_bridges = start_ehapi_bridges(&ehapi_token_dir, &topo)?;
+    let ehapi_bridge_log_dir = scion_folder.join("logs");
+
+    let ehapi_bridges = start_ehapi_bridges(&ehapi_bridge_log_dir, &ehapi_token_dir, &topo)?;
 
     // Copy gen folder to backup location
     let src_gen = std::path::Path::new(&scion_folder).join("gen");

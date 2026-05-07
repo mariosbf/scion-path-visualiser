@@ -43,4 +43,6 @@ scion-stack = "0.5.2"
 endhost-api-client = "0.5.2"
 scion-sdk-reqwest-connect-rpc = "0.5.2"
 rustls = "0.23.40"
+tracing-appender = "0.2.5"
+tracing-subscriber = "0.3.23"
 
