@@ -8,10 +8,10 @@ import {
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import {
-  IconFolderOpen,
+  IconArrowLoopLeft,
   IconMoon,
-  IconSettings,
   IconSun,
+  IconTopologyComplex,
   TablerIcon,
 } from "@tabler/icons-react";
 import { createFileRoute, Outlet } from "@tanstack/react-router";
@@ -28,8 +28,8 @@ const NAV_ITEMS: Array<{
   label: string;
   link: FileRouteTypes["fullPaths"];
 }> = [
-    { icon: IconFolderOpen, label: "Topology", link: "/app/topology" },
-    { icon: IconSettings, label: "Settings", link: "/app/paths" },
+    { icon: IconTopologyComplex, label: "Topology", link: "/app/topology" },
+    { icon: IconArrowLoopLeft, label: "Paths", link: "/app/paths" },
   ];
 
 export function AppLayout() {
