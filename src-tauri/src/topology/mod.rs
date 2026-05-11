@@ -7,7 +7,7 @@ use crate::status::ServiceStatusInfo;
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
-pub const HBIRD_REDEMPTION_API_PORT: u16 = 30528;
+pub const HBIRD_REDEMPTION_API_PORT: u16 = 30258;
 pub const EHAPI_BRIDGE_PORT: u16 = 31100;
 
 // ── IsdAsnDef ─────────────────────────────────────────────────────────────────
