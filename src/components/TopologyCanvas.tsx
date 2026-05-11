@@ -143,7 +143,7 @@ export function TopologyCanvas({
           type: "highlighted" as const,
           animated: true,
           data: {
-            linkType: edge.data?.linkType ?? "Core",
+            ...edge.data!,
             reverse: highlightedPath.edgeDirections.get(edge.id) === "reverse",
           },
         } as TopologyEdge;
