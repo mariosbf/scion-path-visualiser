@@ -14,17 +14,20 @@ function makeRouterNode(
     data: {
       label: String(interfaceId),
       asId,
-      routerName: 'br1',
       interfaceId,
-      underlayLocal: '',
-      underlayRemote: '',
     } satisfies RouterNodeData,
     position: { x: 0, y: 0 },
   } as TopologyNode;
 }
 
+const stubLink = {
+  a: { as_id: '', router_name: '', interface_id: 0, underlay_local: '', underlay_remote: '' },
+  b: { as_id: '', router_name: '', interface_id: 0, underlay_local: '', underlay_remote: '' },
+  link_type: 'Child' as const,
+};
+
 function makeEdge(id: string, source: string, target: string): TopologyEdge {
-  return { id, source, target, data: { linkType: 'Child' } } as TopologyEdge;
+  return { id, source, target, data: { linkType: 'Child', link: stubLink } } as TopologyEdge;
 }
 
 function makePath(interfaces: { isd_as: string; interface_id: number }[]): ScionPath {

@@ -1,12 +1,5 @@
 import type { Node, Edge } from "@xyflow/react";
-import type {
-  ControlServiceInfo,
-  DiscoveryServiceInfo,
-  EndhostApiBridgeInfo,
-  HbirdInfo,
-  ScionDaemonInfo,
-  Topology,
-} from "../bindings";
+import type { Link, Topology } from "../bindings";
 
 export interface IsdNodeData extends Record<string, unknown> {
   label: string;
@@ -17,26 +10,18 @@ export interface AsNodeData extends Record<string, unknown> {
   label: string;
   asId: string;
   core: boolean;
-  mtu: number | null;
-  control_service: ControlServiceInfo;
-  discovery_service: DiscoveryServiceInfo;
-  hbird_info: HbirdInfo | null;
-  daemon_info: ScionDaemonInfo;
-  ehapi_bridge: EndhostApiBridgeInfo;
 }
 
 export interface RouterNodeData extends Record<string, unknown> {
   label: string;
   asId: string;
-  routerName: string;
   interfaceId: number;
-  underlayLocal: string;
-  underlayRemote: string;
   handleSide?: "top" | "bottom" | "left" | "right";
 }
 
 export interface EdgeData extends Record<string, unknown> {
   linkType: "Core" | "Child" | "Peer";
+  link: Link;
 }
 
 export type TopologyNode =
@@ -73,15 +58,9 @@ export function buildGraph(topology: Topology): {
       id: `as-${asId}`,
       type: "as",
       data: {
-        label: asId.split("-")[1], // show only AS hex, ISD is the parent node's label
+        label: asId.split("-")[1],
         asId,
         core: asInfo.core,
-        mtu: asInfo.mtu,
-        control_service: asInfo.control_service,
-        discovery_service: asInfo.discovery_service,
-        hbird_info: asInfo.hummingbird,
-        daemon_info: asInfo.daemon,
-        ehapi_bridge: asInfo.endhost_api_bridge,
       },
       parentId: `isd-${isd}`,
       extent: "parent",
@@ -103,10 +82,7 @@ export function buildGraph(topology: Topology): {
           data: {
             label: String(ep.interface_id),
             asId: ep.as_id,
-            routerName: ep.router_name,
             interfaceId: ep.interface_id,
-            underlayLocal: ep.underlay_local,
-            underlayRemote: ep.underlay_remote,
           },
           parentId: `as-${ep.as_id}`,
           extent: "parent",
@@ -119,7 +95,7 @@ export function buildGraph(topology: Topology): {
       id: `edge-${link.a.as_id}-${link.a.interface_id}-${link.b.as_id}-${link.b.interface_id}`,
       source: `router-${link.a.as_id}-${link.a.router_name}-${link.a.interface_id}`,
       target: `router-${link.b.as_id}-${link.b.router_name}-${link.b.interface_id}`,
-      data: { linkType: link.link_type },
+      data: { linkType: link.link_type, link },
     });
   }
 

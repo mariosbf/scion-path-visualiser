@@ -5,10 +5,10 @@ import type { Topology } from "../bindings";
 const stubAs = (core: boolean) => ({
   core,
   mtu: 1472,
-  control_service: { addr: "127.0.0.1:31000", name: "cs1" },
+  control_service: { addr: "127.0.0.1:31000", name: "cs1", status: null },
   discovery_service: { addr: "127.0.0.1:31000", name: "cs1" },
   hummingbird: null,
-  daemon: { id: "sd1", address: "127.0.0.1:30255", api_addr: "127.0.0.1:30255" },
+  daemon: { id: "sd1", address: "127.0.0.1:30255", api_addr: "127.0.0.1:30255", status: null },
   endhost_api_bridge: { addr: "127.0.0.1:30041" },
   border_routers: [],
 });
@@ -99,5 +99,10 @@ describe("buildGraph", () => {
     const { nodes, edges } = buildGraph({ ases: {}, links: [] });
     expect(nodes).toHaveLength(0);
     expect(edges).toHaveLength(0);
+  });
+
+  it("stores the source link reference in edge data", () => {
+    const { edges } = buildGraph(tinyTopology);
+    expect(edges[0].data?.link).toBe(tinyTopology.links[0]);
   });
 });
