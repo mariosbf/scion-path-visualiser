@@ -17,8 +17,18 @@ import {
 } from "@mantine/core";
 import { open } from "@tauri-apps/plugin-dialog";
 import { listen } from "@tauri-apps/api/event";
-import { useNavigate } from "@tanstack/react-router";
+import { createFileRoute, redirect, useNavigate } from "@tanstack/react-router";
 import { commands } from "../bindings";
+
+export const Route = createFileRoute("/setup")({
+  beforeLoad: async () => {
+    const result = await commands.getTopology();
+    if (result.status === "ok") {
+      throw redirect({ to: "/app/topology" });
+    }
+  },
+  component: SetupWizard,
+});
 import { TerminalOutput } from "../components/TerminalOutput";
 import { getRecent, pushRecent } from "../lib/store";
 import logo from "../assets/logo.png";

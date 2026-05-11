@@ -12,15 +12,25 @@ import {
   IconMoon,
   IconSettings,
   IconSun,
+  TablerIcon,
 } from "@tabler/icons-react";
-import { Outlet } from "@tanstack/react-router";
+import { createFileRoute, Outlet } from "@tanstack/react-router";
 import { NavHeader } from "../components/NavHeader";
 import { NavItem } from "../components/NavItem";
+import { FileRouteTypes } from "../routeTree.gen";
 
-const NAV_ITEMS = [
-  { icon: IconFolderOpen, label: "Projects" },
-  { icon: IconSettings, label: "Settings" },
-];
+export const Route = createFileRoute("/app")({
+  component: AppLayout,
+});
+
+const NAV_ITEMS: Array<{
+  icon: TablerIcon;
+  label: string;
+  link: FileRouteTypes["fullPaths"];
+}> = [
+    { icon: IconFolderOpen, label: "Projects", link: "/app/topology" },
+    { icon: IconSettings, label: "Settings", link: "/app/topology" },
+  ];
 
 export function AppLayout() {
   const [opened, { toggle }] = useDisclosure(true);
@@ -40,12 +50,7 @@ export function AppLayout() {
           <AppShell.Section grow>
             <Stack gap={4} p={4}>
               {NAV_ITEMS.map((item) => (
-                <NavItem
-                  key={item.label}
-                  icon={item.icon}
-                  label={item.label}
-                  expanded={opened}
-                />
+                <NavItem key={item.label} {...item} expanded={opened} />
               ))}
             </Stack>
           </AppShell.Section>

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { useNavigate, useParams } from "@tanstack/react-router";
+import { createFileRoute, useNavigate, useParams } from "@tanstack/react-router";
 import { ActionIcon, Box, Divider, Group, Stack, Text } from "@mantine/core";
 import { IconArrowLeft, IconTrash } from "@tabler/icons-react";
 import { listen } from "@tauri-apps/api/event";
@@ -7,12 +7,16 @@ import { commands } from "../../bindings";
 import { TerminalOutput } from "../../components/TerminalOutput";
 import useTopology from "../../hooks/useTopology";
 
+export const Route = createFileRoute("/app/logs/$serviceName")({
+  component: ServiceLogsRoute,
+});
+
 interface LogOutputPayload {
   stream_id: string;
   line: string;
 }
 
-export function ServiceLogsRoute() {
+function ServiceLogsRoute() {
   const navigate = useNavigate();
   const { serviceName } = useParams({ from: "/app/logs/$serviceName" });
   const topologyRes = useTopology();

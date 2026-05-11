@@ -1,5 +1,9 @@
 import { Affix, SegmentedControl } from "@mantine/core";
-import { useNavigate } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
+
+export const Route = createFileRoute("/app/topology")({
+  component: TopologyRoute,
+});
 import { useState } from "react";
 import { PathSearchView } from "../../components/PathSearchView";
 import { TopologyView } from "../../components/TopologyView";
