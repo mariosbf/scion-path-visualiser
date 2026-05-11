@@ -3,7 +3,7 @@ import { useNavigate, useParams } from "@tanstack/react-router";
 import { ActionIcon, Box, Divider, Group, Stack, Text } from "@mantine/core";
 import { IconArrowLeft, IconTrash } from "@tabler/icons-react";
 import { listen } from "@tauri-apps/api/event";
-import { commands, type Topology } from "../../bindings";
+import { commands } from "../../bindings";
 import { TerminalOutput } from "../../components/TerminalOutput";
 import useTopology from "../../hooks/useTopology";
 

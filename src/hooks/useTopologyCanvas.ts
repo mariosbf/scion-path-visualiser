@@ -18,7 +18,12 @@ export type TopologyCanvasItem = TopologyItem<
 export type SelectedInfo =
   | { type: "isd"; data: { isd: string; ases: [string, AsInfo][] } }
   | { type: "as"; data: AsInfo; asId: string }
-  | { type: "border-router"; data: BorderRouterInfo; asId: string; interfaceId: number }
+  | {
+    type: "border-router";
+    data: BorderRouterInfo;
+    asId: string;
+    interfaceId: number;
+  }
   | { type: "link"; data: Link };
 
 export function resolveSelectedInfo(
@@ -46,7 +51,9 @@ export function resolveSelectedInfo(
     const { asId, interfaceId } = selected.data;
     const asInfo = topology.ases[asId];
     if (!asInfo) return undefined;
-    const router = asInfo.border_routers.find((r) => interfaceId in r.interfaces);
+    const router = asInfo.border_routers.find(
+      (r) => interfaceId in r.interfaces,
+    );
     if (!router) return undefined;
     return { type: "border-router", data: router, asId, interfaceId };
   }
@@ -64,6 +71,7 @@ export default function useTopologyCanvas(topology: Topology): {
     onComponentClick: (component?: TopologyCanvasItem) => void;
   };
   selected: TopologyCanvasItem | undefined;
+  setSelected: (item: TopologyCanvasItem | undefined) => void;
   selectedInfo: SelectedInfo | undefined;
 } {
   const [selected, setSelected] = useState<TopologyCanvasItem | undefined>();
@@ -81,5 +89,5 @@ export default function useTopologyCanvas(topology: Topology): {
     [topology],
   );
 
-  return { canvasProps, selected, selectedInfo };
+  return { canvasProps, selected, setSelected, selectedInfo };
 }

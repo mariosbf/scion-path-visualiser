@@ -8,26 +8,27 @@ import {
   Text,
   useDrawersStack,
 } from "@mantine/core";
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import type { AsInfo, Link, Topology } from "../bindings";
 import useTopologyCanvas from "../hooks/useTopologyCanvas";
 import { TopologyCanvas } from "./TopologyCanvas";
-import { AsDetailDrawer } from "./drawers/AsDetailDrawer";
 import type { AsSelection, ServiceDrawerId } from "./drawers/AsDetailDrawer";
+import { AsDetailDrawer } from "./drawers/AsDetailDrawer";
 import { ControlServiceDrawer } from "./drawers/ControlServiceDrawer";
 import { DaemonDrawer } from "./drawers/DaemonDrawer";
 import { EndhostApiBridgeDrawer } from "./drawers/EndhostApiBridgeDrawer";
 import { HummingbirdDrawer } from "./drawers/HummingbirdDrawer";
 import { InfoItem } from "./drawers/InfoItem";
-import { RouterDetailDrawer } from "./drawers/RouterDetailDrawer";
 import type { RouterSelection } from "./drawers/RouterDetailDrawer";
+import { RouterDetailDrawer } from "./drawers/RouterDetailDrawer";
 
 interface Props {
   topology: Topology;
 }
 
 export function TopologyView({ topology }: Props) {
-  const { canvasProps, selected, selectedInfo } = useTopologyCanvas(topology);
+  const { canvasProps, selected, setSelected, selectedInfo } =
+    useTopologyCanvas(topology);
 
   const drawersStack = useDrawersStack([
     "detail",
@@ -38,36 +39,38 @@ export function TopologyView({ topology }: Props) {
     "as-detail",
     "ehapi-bridge",
   ]);
+  const { open: openDrawer, closeAll: closeAllDrawers } = drawersStack;
 
   const [activeAsId, setActiveAsId] = useState<string | null>(null);
-  const [activeRouter, setActiveRouter] = useState<RouterSelection | null>(null);
+  const [activeRouter, setActiveRouter] = useState<RouterSelection | null>(
+    null,
+  );
 
   useEffect(() => {
     if (!selected) {
-      drawersStack.closeAll();
+      closeAllDrawers();
       return;
     }
     if (selected.type === "isd" || selected.type === "link") {
-      drawersStack.open("detail");
+      openDrawer("detail");
     } else if (selected.type === "as") {
       setActiveAsId(selected.data.asId);
-      drawersStack.open("as-detail");
-    } else if (selected.type === "border-router" && selectedInfo?.type === "border-router") {
+      openDrawer("as-detail");
+    } else if (
+      selected.type === "border-router" &&
+      selectedInfo?.type === "border-router"
+    ) {
       setActiveAsId(selected.data.asId);
       setActiveRouter({
         router: selectedInfo.data,
         asId: selectedInfo.asId,
         interfaceId: selectedInfo.interfaceId,
       });
-      drawersStack.open("router-detail");
+      openDrawer("router-detail");
     }
-  }, [selected, selectedInfo, drawersStack]);
+  }, [selected, selectedInfo, openDrawer, closeAllDrawers]);
 
-  const handleDeselect = useCallback(() => {
-    canvasProps.onComponentClick(undefined);
-  }, [canvasProps]);
-
-  const activeAsInfo = activeAsId ? topology.ases[activeAsId] ?? null : null;
+  const activeAsInfo = activeAsId ? (topology.ases[activeAsId] ?? null) : null;
   const activeAsSelection: AsSelection | null =
     activeAsId && activeAsInfo
       ? { asId: activeAsId, info: activeAsInfo }
@@ -81,7 +84,7 @@ export function TopologyView({ topology }: Props) {
         {...drawersStack.register("detail")}
         onClose={() => {
           drawersStack.close("detail");
-          handleDeselect();
+          setSelected(undefined);
         }}
         position="right"
         size="md"
@@ -104,7 +107,10 @@ export function TopologyView({ topology }: Props) {
 
       <AsDetailDrawer
         {...drawersStack.register("as-detail")}
-        onClose={() => drawersStack.close("as-detail")}
+        onClose={() => {
+          drawersStack.close("as-detail");
+          setSelected(undefined);
+        }}
         selection={activeAsSelection}
         onViewService={(id: ServiceDrawerId) => drawersStack.open(id)}
         onViewRouter={(r: RouterSelection) => {
@@ -136,6 +142,9 @@ export function TopologyView({ topology }: Props) {
       <RouterDetailDrawer
         {...drawersStack.register("router-detail")}
         selection={activeRouter}
+        onClose={() => {
+          setSelected(undefined);
+        }}
       />
     </DrawerStack>
   );

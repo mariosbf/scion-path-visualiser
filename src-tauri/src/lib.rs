@@ -10,7 +10,7 @@ use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use std::{collections::HashMap, time::Duration};
 use tauri::{Emitter, Manager};
-use tauri_plugin_log::log::info;
+use tauri_plugin_log::log::{debug, info};
 use tauri_specta::{collect_commands, Builder};
 
 use crate::ehapi_bridge::start_ehapi_bridges;
