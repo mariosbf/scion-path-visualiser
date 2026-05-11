@@ -1,5 +1,6 @@
 import { useCallback, useMemo, useState } from 'react';
 import type { ScionPath, Topology } from '../bindings';
+import useTopologyCanvas from '../hooks/useTopologyCanvas';
 import { mapPathToEdges, type HighlightedPath } from '../lib/paths';
 import type { TopologyNode, TopologyEdge } from '../lib/topology';
 import { TopologyCanvas } from './TopologyCanvas';
@@ -10,6 +11,8 @@ interface Props {
 }
 
 export function PathSearchView({ topology }: Props) {
+  const { canvasProps } = useTopologyCanvas(topology);
+
   const [hoveredPath, setHoveredPath] = useState<ScionPath | null>(null);
   const [pinnedPath, setPinnedPath] = useState<ScionPath | null>(null);
   const [graphNodes, setGraphNodes] = useState<TopologyNode[]>([]);
@@ -22,7 +25,6 @@ export function PathSearchView({ topology }: Props) {
     return mapPathToEdges(activePath, graphNodes, graphEdges);
   }, [activePath, graphNodes, graphEdges]);
 
-  // Stable reference prevents useEffect in TopologyCanvas from firing on every render
   const handleGraphReady = useCallback(
     (nodes: TopologyNode[], edges: TopologyEdge[]) => {
       setGraphNodes(nodes);
@@ -52,7 +54,7 @@ export function PathSearchView({ topology }: Props) {
         selectedPath={pinnedPath}
       />
       <TopologyCanvas
-        topology={topology}
+        {...canvasProps}
         highlightedPath={highlightedPath}
         onGraphReady={handleGraphReady}
       />
