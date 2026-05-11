@@ -13,7 +13,6 @@ export type ServiceDrawerId =
 export interface AsSelection {
   asId: string;
   info: AsInfo;
-  routers: BorderRouterInfo[];
 }
 
 interface Props extends ComponentPropsWithoutRef<typeof Drawer> {
@@ -40,7 +39,6 @@ export function AsDetailDrawer({
         <AsDetails
           asId={selection.asId}
           info={selection.info}
-          routers={selection.routers}
           onViewService={onViewService}
           onViewRouter={onViewRouter}
         />
@@ -52,13 +50,11 @@ export function AsDetailDrawer({
 export function AsDetails({
   asId,
   info,
-  routers,
   onViewService,
   onViewRouter,
 }: {
   asId: string;
   info: AsInfo;
-  routers: BorderRouterInfo[];
   onViewService: (id: ServiceDrawerId) => void;
   onViewRouter: (r: RouterSelection) => void;
 }) {
@@ -94,12 +90,12 @@ export function AsDetails({
       </Stack>
       <Divider />
 
-      {routers.length > 0 && (
+      {info.border_routers.length > 0 && (
         <>
           <Stack gap={4}>
             <Text c="dimmed">Routers</Text>
             <Stack gap={4}>
-              {routers.flatMap((r) =>
+              {info.border_routers.flatMap((r) =>
                 Object.keys(r.interfaces).map((ifId) => {
                   const interfaceId = Number(ifId);
                   return (
