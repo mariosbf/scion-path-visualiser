@@ -28,8 +28,8 @@ const NAV_ITEMS: Array<{
   label: string;
   link: FileRouteTypes["fullPaths"];
 }> = [
-    { icon: IconFolderOpen, label: "Projects", link: "/app/topology" },
-    { icon: IconSettings, label: "Settings", link: "/app/topology" },
+    { icon: IconFolderOpen, label: "Topology", link: "/app/topology" },
+    { icon: IconSettings, label: "Settings", link: "/app/paths" },
   ];
 
 export function AppLayout() {

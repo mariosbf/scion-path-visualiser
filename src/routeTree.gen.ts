@@ -14,6 +14,7 @@ import { Route as AppRouteImport } from './routes/app'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AppIndexRouteImport } from './routes/app/index'
 import { Route as AppTopologyRouteImport } from './routes/app/topology'
+import { Route as AppPathsRouteImport } from './routes/app/paths'
 import { Route as AppLogsServiceNameRouteImport } from './routes/app/logs.$serviceName'
 
 const SetupRoute = SetupRouteImport.update({
@@ -41,6 +42,11 @@ const AppTopologyRoute = AppTopologyRouteImport.update({
   path: '/topology',
   getParentRoute: () => AppRoute,
 } as any)
+const AppPathsRoute = AppPathsRouteImport.update({
+  id: '/paths',
+  path: '/paths',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppLogsServiceNameRoute = AppLogsServiceNameRouteImport.update({
   id: '/logs/$serviceName',
   path: '/logs/$serviceName',
@@ -51,6 +57,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/app': typeof AppRouteWithChildren
   '/setup': typeof SetupRoute
+  '/app/paths': typeof AppPathsRoute
   '/app/topology': typeof AppTopologyRoute
   '/app/': typeof AppIndexRoute
   '/app/logs/$serviceName': typeof AppLogsServiceNameRoute
@@ -58,6 +65,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/setup': typeof SetupRoute
+  '/app/paths': typeof AppPathsRoute
   '/app/topology': typeof AppTopologyRoute
   '/app': typeof AppIndexRoute
   '/app/logs/$serviceName': typeof AppLogsServiceNameRoute
@@ -67,6 +75,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/app': typeof AppRouteWithChildren
   '/setup': typeof SetupRoute
+  '/app/paths': typeof AppPathsRoute
   '/app/topology': typeof AppTopologyRoute
   '/app/': typeof AppIndexRoute
   '/app/logs/$serviceName': typeof AppLogsServiceNameRoute
@@ -77,16 +86,24 @@ export interface FileRouteTypes {
     | '/'
     | '/app'
     | '/setup'
+    | '/app/paths'
     | '/app/topology'
     | '/app/'
     | '/app/logs/$serviceName'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/setup' | '/app/topology' | '/app' | '/app/logs/$serviceName'
+  to:
+    | '/'
+    | '/setup'
+    | '/app/paths'
+    | '/app/topology'
+    | '/app'
+    | '/app/logs/$serviceName'
   id:
     | '__root__'
     | '/'
     | '/app'
     | '/setup'
+    | '/app/paths'
     | '/app/topology'
     | '/app/'
     | '/app/logs/$serviceName'
@@ -135,6 +152,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppTopologyRouteImport
       parentRoute: typeof AppRoute
     }
+    '/app/paths': {
+      id: '/app/paths'
+      path: '/paths'
+      fullPath: '/app/paths'
+      preLoaderRoute: typeof AppPathsRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/app/logs/$serviceName': {
       id: '/app/logs/$serviceName'
       path: '/logs/$serviceName'
@@ -146,12 +170,14 @@ declare module '@tanstack/react-router' {
 }
 
 interface AppRouteChildren {
+  AppPathsRoute: typeof AppPathsRoute
   AppTopologyRoute: typeof AppTopologyRoute
   AppIndexRoute: typeof AppIndexRoute
   AppLogsServiceNameRoute: typeof AppLogsServiceNameRoute
 }
 
 const AppRouteChildren: AppRouteChildren = {
+  AppPathsRoute: AppPathsRoute,
   AppTopologyRoute: AppTopologyRoute,
   AppIndexRoute: AppIndexRoute,
   AppLogsServiceNameRoute: AppLogsServiceNameRoute,
