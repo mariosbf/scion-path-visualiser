@@ -15,11 +15,6 @@ export type TopologyCanvasItem = TopologyItem<
   Link
 >;
 
-export interface IsdInfo {
-  label: string;
-  isd: string;
-}
-
 export type SelectedInfo =
   | { type: "isd"; data: { isd: string; ases: [string, AsInfo][] } }
   | { type: "as"; data: AsInfo; asId: string }

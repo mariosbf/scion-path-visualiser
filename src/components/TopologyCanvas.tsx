@@ -21,7 +21,7 @@ import {
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import type { AsInfo, BorderRouterInfo, Link, Topology } from "../bindings";
+import type { Topology } from "../bindings";
 import { layoutGraph } from "../lib/layout";
 import type { HighlightedPath } from "../lib/paths";
 import type {
