@@ -1,12 +1,19 @@
 import { useMemo, useState } from "react";
 import type { AsInfo, BorderRouterInfo, Link, Topology } from "../bindings";
-import type { TopologyCanvasItem } from "../components/TopologyCanvas";
+import type { IsdNodeData, AsNodeData, RouterNodeData } from "../lib/topology";
 
 export type TopologyItem<Isd, As, Router, EdgeLink> =
   | { type: "isd"; data: Isd }
   | { type: "as"; data: As }
   | { type: "border-router"; data: Router }
   | { type: "link"; data: EdgeLink };
+
+export type TopologyCanvasItem = TopologyItem<
+  IsdNodeData,
+  AsNodeData,
+  RouterNodeData,
+  Link
+>;
 
 export interface IsdInfo {
   label: string;

@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { resolveSelectedInfo } from "./useTopologyCanvas";
 import type { Topology } from "../bindings";
-import type { TopologyCanvasItem } from "../components/TopologyCanvas";
+import type { TopologyCanvasItem } from "./useTopologyCanvas";
 
 const stubRouter = {
   name: "br-110-1",
