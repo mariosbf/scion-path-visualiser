@@ -11,7 +11,7 @@ import {
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import React, { useCallback, useEffect, useMemo } from "react";
-import type { Link, Topology } from "../bindings";
+import type { Topology } from "../bindings";
 import { layoutGraph } from "../lib/layout";
 import type { HighlightedPath } from "../lib/paths";
 import type {
@@ -27,14 +27,9 @@ import { HighlightedEdge } from "./edges/HighlightedEdge";
 import { AsNode } from "./nodes/AsNode";
 import { IsdNode } from "./nodes/IsdNode";
 import { RouterNode } from "./nodes/RouterNode";
-import type { TopologyItem } from "../hooks/useTopologyCanvas";
+import type { TopologyCanvasItem } from "../hooks/useTopologyCanvas";
 
-export type TopologyCanvasItem = TopologyItem<
-  IsdNodeData,
-  AsNodeData,
-  RouterNodeData,
-  Link
->;
+export type { TopologyCanvasItem } from "../hooks/useTopologyCanvas";
 
 export interface TopologyCanvasProps {
   topology: Topology;

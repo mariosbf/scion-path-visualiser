@@ -73,10 +73,13 @@ export default function useTopologyCanvas(topology: Topology): {
     [selected, topology],
   );
 
-  const canvasProps = {
-    topology,
-    onComponentClick: setSelected,
-  };
+  const canvasProps = useMemo(
+    () => ({
+      topology,
+      onComponentClick: setSelected,
+    }),
+    [topology],
+  );
 
   return { canvasProps, selected, selectedInfo };
 }
