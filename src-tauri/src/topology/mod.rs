@@ -3,6 +3,8 @@ use scion_proto::address::IsdAsn;
 use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, path::Path};
 
+use crate::status::ServiceStatusInfo;
+
 // ── Constants ─────────────────────────────────────────────────────────────────
 
 pub const HBIRD_REDEMPTION_API_PORT: u16 = 30528;
@@ -45,6 +47,7 @@ pub struct BorderRouterInfo {
     pub name: String,
     pub internal_addr: std::net::SocketAddr,
     pub interfaces: HashMap<u16, BorderRouterInterfaceInfo>,
+    pub status: Option<ServiceStatusInfo>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
@@ -68,6 +71,7 @@ pub struct HbirdInfo {
     pub min_bandwidth: u32,
     pub max_bandwidth: u32,
     pub addr: std::net::SocketAddr,
+    pub status: Option<ServiceStatusInfo>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
@@ -75,12 +79,14 @@ pub struct ScionDaemonInfo {
     pub id: String,
     pub address: std::net::SocketAddr,
     pub api_addr: std::net::SocketAddr,
+    pub status: Option<ServiceStatusInfo>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 pub struct ControlServiceInfo {
     pub addr: std::net::SocketAddr,
     pub name: String,
+    pub status: Option<ServiceStatusInfo>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
@@ -152,6 +158,7 @@ impl RawAsTopology {
                         }
                     })
                     .collect(),
+                status: None,
             })
             .collect()
     }
@@ -345,6 +352,7 @@ pub fn build_topology(
                 control_service_info.addr.ip(),
                 HBIRD_REDEMPTION_API_PORT,
             ),
+            status: None,
         });
 
         let daemon = sd_map
@@ -353,6 +361,7 @@ pub fn build_topology(
                 id: sd.general.id.clone(),
                 address: sd.sd.address,
                 api_addr: sd.api.addr,
+                status: None,
             })
             .with_context(|| {
                 format!(
@@ -377,6 +386,7 @@ pub fn build_topology(
                 control_service: ControlServiceInfo {
                     addr: control_service_info.addr,
                     name: control_service_name.clone(),
+                    status: None,
                 },
                 discovery_service: DiscoveryServiceInfo {
                     addr: discovery_service_info.addr,

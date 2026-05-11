@@ -1,32 +1,30 @@
-import { Affix, SegmentedControl } from '@mantine/core';
-import { useEffect, useState } from 'react';
-import { useNavigate } from '@tanstack/react-router';
-import { commands, type Topology } from '../../bindings';
-import { TopologyView } from '../../components/TopologyView';
-import { PathSearchView } from '../../components/PathSearchView';
+import { Affix, SegmentedControl } from "@mantine/core";
+import { useNavigate } from "@tanstack/react-router";
+import { useState } from "react";
+import { PathSearchView } from "../../components/PathSearchView";
+import { TopologyView } from "../../components/TopologyView";
+import useTopology from "../../hooks/useTopology";
 
-type Mode = 'default' | 'path-search';
+type Mode = "default" | "path-search";
 
 export function TopologyRoute() {
   const navigate = useNavigate();
-  const [topology, setTopology] = useState<Topology | null>(null);
-  const [mode, setMode] = useState<Mode>('default');
+  const topologyRes = useTopology();
+  const [mode, setMode] = useState<Mode>("default");
 
-  useEffect(() => {
-    commands.getTopology().then((result) => {
-      if (result.status === 'ok') {
-        setTopology(result.data);
-      } else {
-        navigate({ to: '/setup' });
-      }
-    });
-  }, [navigate]);
+  if (topologyRes?.status === "error") {
+    navigate({ to: "/setup" });
+  }
 
-  if (!topology) return null;
+  if (topologyRes === undefined || topologyRes.status === "error") {
+    return null;
+  }
+
+  const topology = topologyRes.data;
 
   return (
-    <div style={{ width: '100%', height: '100%', position: 'relative' }}>
-      {mode === 'default' ? (
+    <div style={{ width: "100%", height: "100%", position: "relative" }}>
+      {mode === "default" ? (
         <TopologyView topology={topology} />
       ) : (
         <PathSearchView topology={topology} />
@@ -37,8 +35,8 @@ export function TopologyRoute() {
           value={mode}
           onChange={(v) => setMode(v as Mode)}
           data={[
-            { value: 'default', label: 'Topology' },
-            { value: 'path-search', label: 'Paths' },
+            { value: "default", label: "Topology" },
+            { value: "path-search", label: "Paths" },
           ]}
         />
       </Affix>

@@ -1,5 +1,6 @@
 pub mod ehapi_bridge;
 pub mod paths;
+pub mod status;
 pub mod topology;
 pub mod util;
 
@@ -9,7 +10,7 @@ use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use std::{collections::HashMap, time::Duration};
 use tauri::{Emitter, Manager};
-use tauri_plugin_log::log::debug;
+use tauri_plugin_log::log::info;
 use tauri_specta::{collect_commands, Builder};
 
 use crate::ehapi_bridge::start_ehapi_bridges;
@@ -54,6 +55,7 @@ pub struct RunningState {
     topology: Topology,
     scion_folder: PathBuf,
     ehapi_bridges: EhapiBridgeMap,
+    status_task: tokio::task::JoinHandle<()>,
 }
 
 #[tauri::command]
@@ -74,7 +76,7 @@ async fn setup_scion_network(
     // Generate topology
     let mut child = tokio::process::Command::new("./scion.sh")
         .args(["topology", "-c", &topo_file])
-        .current_dir(&scion_folder)
+        .current_dir(scion_folder)
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()
@@ -97,7 +99,7 @@ async fn setup_scion_network(
 
     let mut child = tokio::process::Command::new("./scion.sh")
         .args(["start"])
-        .current_dir(&scion_folder)
+        .current_dir(scion_folder)
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()
@@ -153,11 +155,46 @@ async fn setup_scion_network(
         .map(|s: &str| s.to_string())
         .ok_or_else(|| "Generated path contains invalid Unicode".to_string())?;
 
+    // Spawn periodic status check
+    let app_for_status = app.clone();
+    let folder_for_status = scion_folder.to_path_buf();
+    let status_task = tokio::spawn(async move {
+        use crate::status::{apply_status_update, parse_status};
+
+        let mut interval = tokio::time::interval(Duration::from_secs(5));
+        loop {
+            interval.tick().await;
+            info!("Reading SCION network status");
+            let Ok(output) = tokio::process::Command::new("./scion.sh")
+                .arg("status")
+                .current_dir(&folder_for_status)
+                .output()
+                .await
+            else {
+                continue;
+            };
+            let output = String::from_utf8_lossy(&output.stdout);
+
+            let Ok(statuses) = parse_status(&output) else {
+                continue;
+            };
+            let state = app_for_status.state::<AppState>();
+            let mut guard = state.lock().unwrap();
+            if let AppStateInner::Running(running) = &mut *guard {
+                apply_status_update(&mut running.topology, statuses, chrono::Utc::now());
+                app.emit("status-update", running.topology.clone())
+                    .inspect_err(|e| tracing::warn!("Failed to emit status-update event: {e}"))
+                    .ok();
+            }
+        }
+    });
+
     // Set application state to running
     *state.lock().unwrap() = AppStateInner::Running(RunningState {
         topology: topo,
         scion_folder: std::path::PathBuf::from(scion_folder),
         ehapi_bridges,
+        status_task,
     });
 
     Ok("SCION network setup complete".to_string())
@@ -357,6 +394,7 @@ pub fn run() {
                 let state = state.lock().unwrap();
                 if let AppStateInner::Running(running) = &*state {
                     debug!("Stopping SCION network…");
+                    running.status_task.abort();
                     for bridge in running.ehapi_bridges.values() {
                         bridge.cancel.cancel();
                     }

@@ -74,18 +74,20 @@ async getPaths(srcAs: string, dstAs: string) : Promise<Result<ScionPath[], strin
 /** user-defined types **/
 
 export type AsInfo = { core: boolean; mtu: number | null; control_service: ControlServiceInfo; discovery_service: DiscoveryServiceInfo; hummingbird: HbirdInfo | null; daemon: ScionDaemonInfo; endhost_api_bridge: EndhostApiBridgeInfo; border_routers: BorderRouterInfo[] }
-export type BorderRouterInfo = { name: string; internal_addr: string; interfaces: { [key in number]: BorderRouterInterfaceInfo } }
+export type BorderRouterInfo = { name: string; internal_addr: string; interfaces: { [key in number]: BorderRouterInterfaceInfo }; status: ServiceStatusInfo | null }
 export type BorderRouterInterfaceInfo = { isd_as: string; link_to: string; mtu: number | null; underlay_local: string; underlay_remote: string }
-export type ControlServiceInfo = { addr: string; name: string }
+export type ControlServiceInfo = { addr: string; name: string; status: ServiceStatusInfo | null }
 export type DiscoveryServiceInfo = { addr: string; name: string }
 export type EndhostApiBridgeInfo = { addr: string }
-export type HbirdInfo = { id: string; reservation_duration: string; min_bandwidth: number; max_bandwidth: number; addr: string }
+export type HbirdInfo = { id: string; reservation_duration: string; min_bandwidth: number; max_bandwidth: number; addr: string; status: ServiceStatusInfo | null }
 export type Link = { a: LinkEndpoint; b: LinkEndpoint; link_type: LinkType }
 export type LinkEndpoint = { as_id: string; router_name: string; interface_id: number; underlay_local: string; underlay_remote: string }
 export type LinkType = "Core" | "Child" | "Peer"
-export type ScionDaemonInfo = { id: string; address: string; api_addr: string }
+export type ScionDaemonInfo = { id: string; address: string; api_addr: string; status: ServiceStatusInfo | null }
 export type ScionPath = { interfaces: ScionPathInterface[]; expiry: string; mtu: number }
 export type ScionPathInterface = { isd_as: string; interface_id: number }
+export type ServiceState = "Running" | "Stopped" | "Starting" | "Stopping" | "Exited" | "Fatal" | "Unknown" | "Backoff" | "Paused" | "Restarting" | "Dead" | "Created"
+export type ServiceStatusInfo = { state: ServiceState; timestamp: string }
 export type Topology = { ases: { [key in string]: AsInfo }; links: Link[] }
 
 /** tauri-specta globals **/

@@ -5,6 +5,7 @@ import { IconArrowLeft, IconTrash } from "@tabler/icons-react";
 import { listen } from "@tauri-apps/api/event";
 import { commands, type Topology } from "../../bindings";
 import { TerminalOutput } from "../../components/TerminalOutput";
+import useTopology from "../../hooks/useTopology";
 
 interface LogOutputPayload {
   stream_id: string;
@@ -14,7 +15,12 @@ interface LogOutputPayload {
 export function ServiceLogsRoute() {
   const navigate = useNavigate();
   const { serviceName } = useParams({ from: "/app/logs/$serviceName" });
-  const [topology, setTopology] = useState<Topology | null>(null);
+  const topologyRes = useTopology();
+
+  if (topologyRes !== undefined && topologyRes.status == "error") {
+    navigate({ to: "/app/topology" });
+  }
+  const topology = topologyRes?.status === "ok" ? topologyRes.data : undefined;
 
   const [lines, setLines] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -38,16 +44,6 @@ export function ServiceLogsRoute() {
       }
     }
   }
-
-  useEffect(() => {
-    commands.getTopology().then((result) => {
-      if (result.status === "ok") {
-        setTopology(result.data);
-      } else {
-        navigate({ to: "/setup" });
-      }
-    });
-  }, [navigate]);
 
   useEffect(() => {
     let cancelled = false;
