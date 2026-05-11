@@ -16,6 +16,7 @@ import type { AsSelection, ServiceDrawerId } from "./drawers/AsDetailDrawer";
 import { AsDetailDrawer } from "./drawers/AsDetailDrawer";
 import { ControlServiceDrawer } from "./drawers/ControlServiceDrawer";
 import { DaemonDrawer } from "./drawers/DaemonDrawer";
+import { DiscoveryServiceDrawer } from "./drawers/DiscoveryServiceDrawer";
 import { EndhostApiBridgeDrawer } from "./drawers/EndhostApiBridgeDrawer";
 import { HummingbirdDrawer } from "./drawers/HummingbirdDrawer";
 import { InfoItem } from "./drawers/InfoItem";
@@ -35,6 +36,7 @@ export function TopologyView({ topology }: Props) {
     "service-control",
     "service-daemon",
     "service-hbird",
+    "service-discovery",
     "router-detail",
     "as-detail",
     "ehapi-bridge",
@@ -138,6 +140,10 @@ export function TopologyView({ topology }: Props) {
             ? { asId: activeAsId, info: activeAsInfo.endhost_api_bridge }
             : null
         }
+      />
+      <DiscoveryServiceDrawer
+        {...drawersStack.register("service-discovery")}
+        info={activeAsInfo?.discovery_service ?? null}
       />
       <RouterDetailDrawer
         {...drawersStack.register("router-detail")}

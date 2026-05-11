@@ -8,7 +8,8 @@ export type ServiceDrawerId =
   | "service-control"
   | "service-daemon"
   | "service-hbird"
-  | "ehapi-bridge";
+  | "ehapi-bridge"
+  | "service-discovery";
 
 export interface AsSelection {
   asId: string;
@@ -86,6 +87,9 @@ export function AsDetails({
               Hummingbird ({info.hummingbird.id})
             </Anchor>
           )}
+          <Anchor href="#" onClick={() => onViewService("service-discovery")}>
+            Discovery Service ({info.discovery_service.name})
+          </Anchor>
         </Stack>
       </Stack>
       <Divider />
@@ -117,10 +121,6 @@ export function AsDetails({
         </>
       )}
 
-      <InfoItem
-        label="Discovery Service"
-        values={[info.discovery_service.name, info.discovery_service.addr]}
-      />
     </Stack>
   );
 }
