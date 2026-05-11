@@ -1,6 +1,6 @@
 import { Anchor, Badge, Divider, Drawer, Stack, Text } from "@mantine/core";
 import type { ComponentPropsWithoutRef } from "react";
-import type { AsInfo, BorderRouterInfo } from "../../bindings";
+import type { AsInfo } from "../../bindings";
 import type { RouterSelection } from "./RouterDetailDrawer";
 import { InfoItem } from "./InfoItem";
 
