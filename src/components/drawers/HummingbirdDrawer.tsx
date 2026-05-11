@@ -1,35 +1,34 @@
 import { Drawer } from "@mantine/core";
 import type { ComponentPropsWithoutRef } from "react";
-import type { AsNodeData } from "../../lib/topology";
+import type { HbirdInfo } from "../../bindings";
 import { ServiceDrawerContent } from "./ServiceDrawerContent";
+import ServiceStatusInfoItem from "./ServiceStatusInfoItem";
 
 interface Props extends ComponentPropsWithoutRef<typeof Drawer> {
-  activeAsData: AsNodeData | null;
+  info: HbirdInfo | null;
 }
 
-export function HummingbirdDrawer({ activeAsData, ...drawerProps }: Props) {
+export function HummingbirdDrawer({ info, ...drawerProps }: Props) {
   return (
     <Drawer
       {...drawerProps}
       position="right"
       size="md"
-      title={
-        activeAsData?.hbird_info
-          ? `Hummingbird — ${activeAsData.hbird_info.id}`
-          : "Hummingbird"
-      }
+      title={info ? `Hummingbird — ${info.id}` : "Hummingbird"}
       styles={{ body: { paddingTop: 8 } }}
     >
-      {activeAsData?.hbird_info && (
+      {info && (
         <ServiceDrawerContent
           fields={[
-            { label: "Address", value: activeAsData.hbird_info.addr },
-            { label: "Min Bandwidth", value: activeAsData.hbird_info.min_bandwidth },
-            { label: "Max Bandwidth", value: activeAsData.hbird_info.max_bandwidth },
-            { label: "Reservation Duration", value: activeAsData.hbird_info.reservation_duration },
+            { label: "Address", value: info.addr },
+            { label: "Min Bandwidth", value: info.min_bandwidth },
+            { label: "Max Bandwidth", value: info.max_bandwidth },
+            { label: "Reservation Duration", value: info.reservation_duration },
           ]}
-          logsServiceName={activeAsData.hbird_info.id}
-        />
+          logsServiceName={info.id}
+        >
+          <ServiceStatusInfoItem status={info.status} />
+        </ServiceDrawerContent>
       )}
     </Drawer>
   );

@@ -1,6 +1,7 @@
 import { Anchor, Badge, Divider, Drawer, Stack, Text } from "@mantine/core";
 import type { ComponentPropsWithoutRef } from "react";
-import type { AsNodeData, RouterNodeData } from "../../lib/topology";
+import type { AsInfo, BorderRouterInfo } from "../../bindings";
+import type { RouterSelection } from "./RouterDetailDrawer";
 import { InfoItem } from "./InfoItem";
 
 export type ServiceDrawerId =
@@ -9,16 +10,20 @@ export type ServiceDrawerId =
   | "service-hbird"
   | "ehapi-bridge";
 
+export interface AsSelection {
+  asId: string;
+  info: AsInfo;
+  routers: BorderRouterInfo[];
+}
+
 interface Props extends ComponentPropsWithoutRef<typeof Drawer> {
-  selectedAs: AsNodeData | null;
-  routers: RouterNodeData[];
+  selection: AsSelection | null;
   onViewService: (id: ServiceDrawerId) => void;
-  onViewRouter: (router: RouterNodeData) => void;
+  onViewRouter: (r: RouterSelection) => void;
 }
 
 export function AsDetailDrawer({
-  selectedAs,
-  routers,
+  selection,
   onViewService,
   onViewRouter,
   ...drawerProps
@@ -28,13 +33,14 @@ export function AsDetailDrawer({
       {...drawerProps}
       position="right"
       size="md"
-      title={selectedAs ? `AS — ${selectedAs.asId}` : "AS"}
+      title={selection ? `AS — ${selection.asId}` : "AS"}
       styles={{ body: { paddingTop: 8 } }}
     >
-      {selectedAs && (
+      {selection && (
         <AsDetails
-          node={selectedAs}
-          routers={routers}
+          asId={selection.asId}
+          info={selection.info}
+          routers={selection.routers}
           onViewService={onViewService}
           onViewRouter={onViewRouter}
         />
@@ -44,24 +50,26 @@ export function AsDetailDrawer({
 }
 
 export function AsDetails({
-  node,
+  asId,
+  info,
   routers,
   onViewService,
   onViewRouter,
 }: {
-  node: AsNodeData;
-  routers: RouterNodeData[];
+  asId: string;
+  info: AsInfo;
+  routers: BorderRouterInfo[];
   onViewService: (id: ServiceDrawerId) => void;
-  onViewRouter: (router: RouterNodeData) => void;
+  onViewRouter: (r: RouterSelection) => void;
 }) {
   return (
     <Stack gap="sm">
-      <InfoItem label="ISD-AS " value={node.asId} />
-      {node.mtu !== null && <InfoItem label="MTU" value={node.mtu} />}
+      <InfoItem label="ISD-AS" value={asId} />
+      {info.mtu !== null && <InfoItem label="MTU" value={info.mtu} />}
 
       <Stack>
         <Text c="dimmed">Type</Text>
-        {node.core && <Badge color="orange">Core</Badge>}
+        {info.core && <Badge color="orange">Core</Badge>}
       </Stack>
       <Divider />
 
@@ -69,17 +77,17 @@ export function AsDetails({
         <Text c="dimmed">Services</Text>
         <Stack gap={4}>
           <Anchor href="#" onClick={() => onViewService("service-control")}>
-            Control service ({node.control_service.name})
+            Control service ({info.control_service.name})
           </Anchor>
           <Anchor href="#" onClick={() => onViewService("service-daemon")}>
-            SCION Daemon ({node.daemon_info.id})
+            SCION Daemon ({info.daemon.id})
           </Anchor>
           <Anchor href="#" onClick={() => onViewService("ehapi-bridge")}>
             Endhost API Bridge
           </Anchor>
-          {node.hbird_info && (
+          {info.hummingbird && (
             <Anchor href="#" onClick={() => onViewService("service-hbird")}>
-              Hummingbird ({node.hbird_info.id})
+              Hummingbird ({info.hummingbird.id})
             </Anchor>
           )}
         </Stack>
@@ -91,15 +99,22 @@ export function AsDetails({
           <Stack gap={4}>
             <Text c="dimmed">Routers</Text>
             <Stack gap={4}>
-              {routers.map((r) => (
-                <Anchor
-                  href="#"
-                  key={`${r.routerName}-${r.interfaceId}`}
-                  onClick={() => onViewRouter(r)}
-                >
-                  {r.routerName} (if: {r.interfaceId})
-                </Anchor>
-              ))}
+              {routers.flatMap((r) =>
+                Object.keys(r.interfaces).map((ifId) => {
+                  const interfaceId = Number(ifId);
+                  return (
+                    <Anchor
+                      href="#"
+                      key={`${r.name}-${interfaceId}`}
+                      onClick={() =>
+                        onViewRouter({ router: r, asId, interfaceId })
+                      }
+                    >
+                      {r.name} (if: {interfaceId})
+                    </Anchor>
+                  );
+                })
+              )}
             </Stack>
           </Stack>
           <Divider />
@@ -108,7 +123,7 @@ export function AsDetails({
 
       <InfoItem
         label="Discovery Service"
-        values={[node.discovery_service.name, node.discovery_service.addr]}
+        values={[info.discovery_service.name, info.discovery_service.addr]}
       />
     </Stack>
   );

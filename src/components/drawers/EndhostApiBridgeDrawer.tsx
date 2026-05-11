@@ -2,32 +2,34 @@ import { Button, Drawer, Stack, Text } from "@mantine/core";
 import { useClipboard } from "@mantine/hooks";
 import { IconCheck } from "@tabler/icons-react";
 import { type ComponentPropsWithoutRef, useEffect, useState } from "react";
-import { FadeIn } from "../util/FadeIn";
-import type { AsNodeData } from "../../lib/topology";
+import type { EndhostApiBridgeInfo } from "../../bindings";
 import { commands } from "../../bindings";
+import { FadeIn } from "../util/FadeIn";
 import { ServiceDrawerContent } from "./ServiceDrawerContent";
 
-interface Props extends ComponentPropsWithoutRef<typeof Drawer> {
-  activeAsData: AsNodeData | null;
+export interface EndhostApiBridgeActive {
+  asId: string;
+  info: EndhostApiBridgeInfo;
 }
 
-export function EndhostApiBridgeDrawer({
-  activeAsData,
-  ...drawerProps
-}: Props) {
+interface Props extends ComponentPropsWithoutRef<typeof Drawer> {
+  activeAs: EndhostApiBridgeActive | null;
+}
+
+export function EndhostApiBridgeDrawer({ activeAs, ...drawerProps }: Props) {
   const clipboard = useClipboard({ timeout: 2000 });
   const [loading, setLoading] = useState(false);
   const [mintError, setMintError] = useState<string | null>(null);
 
   useEffect(() => {
     setMintError(null);
-  }, [activeAsData?.asId]);
+  }, [activeAs?.asId]);
 
   const handleMintToken = () => {
-    if (!activeAsData) return;
+    if (!activeAs) return;
     setLoading(true);
     setMintError(null);
-    commands.mintToken(activeAsData.asId, 86400).then((result) => {
+    commands.mintToken(activeAs.asId, 86400).then((result) => {
       setLoading(false);
       if (result.status === "ok") {
         clipboard.copy(result.data);
@@ -42,17 +44,13 @@ export function EndhostApiBridgeDrawer({
       {...drawerProps}
       position="right"
       size="md"
-      title={
-        activeAsData
-          ? `Endhost API Bridge — ${activeAsData.asId}`
-          : "Endhost API Bridge"
-      }
+      title={activeAs ? `Endhost API Bridge — ${activeAs.asId}` : "Endhost API Bridge"}
       styles={{ body: { paddingTop: 8 } }}
     >
-      {activeAsData && (
+      {activeAs && (
         <ServiceDrawerContent
-          fields={[{ label: "Address", value: activeAsData.ehapi_bridge.addr }]}
-          logsServiceName={`ehapi-bridge-${activeAsData.asId}`}
+          fields={[{ label: "Address", value: activeAs.info.addr }]}
+          logsServiceName={`ehapi-bridge-${activeAs.asId}`}
         >
           <Stack>
             <Button variant="light" loading={loading} onClick={handleMintToken}>
