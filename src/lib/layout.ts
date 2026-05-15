@@ -22,9 +22,9 @@ export function layoutGraph(
   nodes: TopologyNode[],
   edges: TopologyEdge[]
 ): TopologyNode[] {
-  const isdNodes = nodes.filter((n) => n.type === "isd");
-  const asNodes = nodes.filter((n) => n.type === "as") as Node<AsNodeData, "as">[];
-  const routerNodes = nodes.filter((n) => n.type === "router") as Node<RouterNodeData, "router">[];
+  const isdNodes = nodes.filter((n) => n.type === "isd").sort((a, b) => a.id.localeCompare(b.id));
+  const asNodes = (nodes.filter((n) => n.type === "as") as Node<AsNodeData, "as">[]).sort((a, b) => a.id.localeCompare(b.id));
+  const routerNodes = (nodes.filter((n) => n.type === "router") as Node<RouterNodeData, "router">[]).sort((a, b) => a.id.localeCompare(b.id));
 
   // Map router id -> parent AS id
   const routerToAs = new Map<string, string>();
@@ -211,7 +211,8 @@ export function layoutGraph(
       sideMap.set(side, [...ids].sort((a, b) => {
         const ca = peerCenter(a);
         const cb = peerCenter(b);
-        return (side === "top" || side === "bottom") ? ca.x - cb.x : ca.y - cb.y;
+        const primary = (side === "top" || side === "bottom") ? ca.x - cb.x : ca.y - cb.y;
+        return primary !== 0 ? primary : a.localeCompare(b);
       }));
     }
   }

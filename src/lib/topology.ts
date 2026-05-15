@@ -39,9 +39,9 @@ export function buildGraph(topology: Topology): {
   const edges: TopologyEdge[] = [];
 
   // ISD nodes — one per unique ISD number
-  const isdIds = new Set(
+  const isdIds = [...new Set(
     Object.keys(topology.ases).map((id) => id.split("-")[0]),
-  );
+  )].sort();
   for (const isd of isdIds) {
     nodes.push({
       id: `isd-${isd}`,
@@ -52,7 +52,7 @@ export function buildGraph(topology: Topology): {
   }
 
   // AS nodes — parented to their ISD node
-  for (const [asId, asInfo] of Object.entries(topology.ases)) {
+  for (const [asId, asInfo] of Object.entries(topology.ases).sort(([a], [b]) => a.localeCompare(b))) {
     const isd = asId.split("-")[0];
     nodes.push({
       id: `as-${asId}`,
