@@ -98,8 +98,7 @@ pub(crate) async fn get_paths(
         .filter_map(|p| {
             let metadata = p.metadata?;
             let interfaces = metadata
-                .interfaces
-                .unwrap_or_default()
+                .interfaces?
                 .into_iter()
                 .map(|i| ScionPathInterface {
                     isd_as: i.isd_asn.to_string(),

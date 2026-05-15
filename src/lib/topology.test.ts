@@ -24,15 +24,11 @@ const tinyTopology: Topology = {
         as_id: "1-ff00:0:110",
         router_name: "br1-ff00_0_110-1",
         interface_id: 1001,
-        underlay_local: "127.0.0.1:50000",
-        underlay_remote: "127.0.0.2:50000",
       },
       b: {
         as_id: "1-ff00:0:111",
         router_name: "br1-ff00_0_111-1",
         interface_id: 2001,
-        underlay_local: "127.0.0.2:50000",
-        underlay_remote: "127.0.0.1:50000",
       },
       link_type: "Child",
     },
@@ -78,13 +74,13 @@ describe("buildGraph", () => {
       },
       links: [
         {
-          a: { as_id: "1-ff00:0:110", router_name: "br-110-1", interface_id: 1, underlay_local: "a", underlay_remote: "b" },
-          b: { as_id: "1-ff00:0:111", router_name: "br-111-1", interface_id: 2, underlay_local: "b", underlay_remote: "a" },
+          a: { as_id: "1-ff00:0:110", router_name: "br-110-1", interface_id: 1},
+          b: { as_id: "1-ff00:0:111", router_name: "br-111-1", interface_id: 2},
           link_type: "Child",
         },
         {
-          a: { as_id: "1-ff00:0:110", router_name: "br-110-2", interface_id: 3, underlay_local: "a", underlay_remote: "c" },
-          b: { as_id: "1-ff00:0:112", router_name: "br-112-1", interface_id: 4, underlay_local: "c", underlay_remote: "a" },
+          a: { as_id: "1-ff00:0:110", router_name: "br-110-2", interface_id: 3},
+          b: { as_id: "1-ff00:0:112", router_name: "br-112-1", interface_id: 4},
           link_type: "Child",
         },
       ],

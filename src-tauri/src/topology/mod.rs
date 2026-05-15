@@ -1,4 +1,4 @@
-use anyhow::Context;
+use anyhow::{bail, Context};
 use scion_proto::address::IsdAsn;
 use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, path::Path};
@@ -106,9 +106,7 @@ pub struct Link {
 pub struct LinkEndpoint {
     pub as_id: IsdAsnDef,
     pub router_name: String,
-    pub interface_id: u32,
-    pub underlay_local: std::net::SocketAddr,
-    pub underlay_remote: std::net::SocketAddr,
+    pub interface_id: u16,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
@@ -141,21 +139,17 @@ impl RawAsTopology {
                 interfaces: router
                     .interfaces
                     .iter()
-                    .filter_map(|(if_id_str, iface)| {
-                        if let Ok(if_id) = if_id_str.parse::<u16>() {
-                            Some((
-                                if_id,
-                                BorderRouterInterfaceInfo {
-                                    isd_as: iface.isd_as,
-                                    link_to: iface.link_to.clone(),
-                                    mtu: iface.mtu,
-                                    underlay_local: iface.underlay.local,
-                                    underlay_remote: iface.underlay.remote,
-                                },
-                            ))
-                        } else {
-                            None
-                        }
+                    .map(|(&if_id, iface)| {
+                        (
+                            if_id,
+                            BorderRouterInterfaceInfo {
+                                isd_as: iface.isd_as,
+                                link_to: iface.link_to.clone(),
+                                mtu: iface.mtu,
+                                underlay_local: iface.underlay.local,
+                                underlay_remote: iface.underlay.remote,
+                            },
+                        )
                     })
                     .collect(),
                 status: None,
@@ -167,7 +161,7 @@ impl RawAsTopology {
 #[derive(Debug, Deserialize)]
 pub struct RawBorderRouter {
     pub internal_addr: std::net::SocketAddr,
-    pub interfaces: HashMap<String, RawInterface>,
+    pub interfaces: HashMap<u16, RawInterface>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -186,13 +180,71 @@ pub struct RawInterface {
     pub link_to: String,
     pub mtu: Option<u32>,
     pub underlay: RawUnderlay,
-    pub remote_interface_id: Option<u32>,
+    pub remote_interface_id: Option<u16>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct RawUnderlay {
     pub local: std::net::SocketAddr,
     pub remote: std::net::SocketAddr,
+}
+// ── Raw types for TOML ifids.yml deserialization ──────────────────────────────
+
+#[derive(Debug, Deserialize)]
+#[serde(try_from = "HashMap<IsdAsnDef, HashMap<String, String>>")]
+pub struct RawIfidConfig {
+    pub by_as: HashMap<IsdAsnDef, Vec<RawIfidConfigItem>>,
+}
+
+#[derive(Debug)]
+pub struct RawIfidConfigItem {
+    pub local_router: String,
+    pub local_ifid: u16,
+    pub remote_router: String,
+    pub remote_ifid: u16,
+}
+
+impl RawIfidConfigItem {
+    fn parse_endpoint(s: &str) -> Result<(String, u16), String> {
+        let s = s.trim();
+        let last_space = s
+            .rfind(' ')
+            .ok_or_else(|| format!("no space in endpoint: {s}"))?;
+        let router = s[..last_space].to_string();
+        let ifid = s[last_space + 1..]
+            .parse::<u16>()
+            .map_err(|e| format!("bad ifid in '{s}': {e}"))?;
+
+        Ok((router, ifid))
+    }
+}
+
+impl TryFrom<HashMap<IsdAsnDef, HashMap<String, String>>> for RawIfidConfig {
+    type Error = String;
+
+    fn try_from(raw: HashMap<IsdAsnDef, HashMap<String, String>>) -> Result<Self, String> {
+        let mut result = HashMap::new();
+
+        for (as_id, links) in raw {
+            let mut parsed_links = Vec::with_capacity(links.len());
+
+            for (local, remote) in links {
+                let (lr, lid) = RawIfidConfigItem::parse_endpoint(&local)?;
+                let (rr, rid) = RawIfidConfigItem::parse_endpoint(&remote)?;
+
+                parsed_links.push(RawIfidConfigItem {
+                    local_router: lr,
+                    local_ifid: lid,
+                    remote_router: rr,
+                    remote_ifid: rid,
+                })
+            }
+
+            result.insert(as_id, parsed_links);
+        }
+
+        Ok(Self { by_as: result })
+    }
 }
 
 // ── Raw types for TOML hbird.toml deserialization ─────────────────────────────
@@ -243,16 +295,17 @@ pub fn build_topology(
     raw_ases: Vec<RawAsTopology>,
     hbird_map: HashMap<IsdAsnDef, RawHbirdConfig>,
     sd_map: HashMap<IsdAsnDef, RawSdConfig>,
+    router_link_config: RawIfidConfig,
 ) -> anyhow::Result<Topology> {
-    // Build interface index: (as_id, interface_id) -> (router_name, interface)
-    let mut iface_index: HashMap<(IsdAsnDef, u32), (String, RawInterface)> = HashMap::new();
+    // Build interface index: (router_name, interface_id) -> (as_id, router, interface)
+    let mut iface_index: HashMap<String, HashMap<u16, (IsdAsnDef, RawInterface)>> = HashMap::new();
     for raw_as in &raw_ases {
         for (router_name, router) in &raw_as.border_routers {
-            for (if_id_str, iface) in &router.interfaces {
-                if let Ok(if_id) = if_id_str.parse::<u32>() {
-                    iface_index
-                        .insert((raw_as.isd_as, if_id), (router_name.clone(), iface.clone()));
-                }
+            for (&if_id, iface) in &router.interfaces {
+                iface_index
+                    .entry(router_name.to_string())
+                    .or_default()
+                    .insert(if_id, (raw_as.isd_as, iface.clone()));
             }
         }
     }
@@ -260,73 +313,64 @@ pub fn build_topology(
     let mut links: Vec<Link> = Vec::new();
 
     for raw_as in &raw_ases {
-        for (router_name, router) in &raw_as.border_routers {
-            for (if_id_str, iface) in &router.interfaces {
-                let local_as = raw_as.isd_as;
-                let remote_as = iface.isd_as;
+        let as_links = router_link_config
+            .by_as
+            .get(&raw_as.isd_as)
+            .context(format!(
+                "missing entry in ifidis.yaml for AS {}",
+                raw_as.isd_as.0
+            ))?;
 
-                // Process each link only from the side with the smaller IsdAsn u64 value
-                if local_as.0.to_u64() >= remote_as.0.to_u64() {
-                    continue;
-                }
+        for link in as_links {
+            let local_router_name = &link.local_router;
+            let local_ifid = link.local_ifid;
 
-                let if_id: u32 = match if_id_str.parse() {
-                    Ok(id) => id,
-                    Err(_) => continue,
-                };
+            let remote_router_name = &link.remote_router;
+            let remote_ifid = link.remote_ifid;
 
-                // Find the remote endpoint
-                let remote_endpoint = if let Some(remote_if_id) = iface.remote_interface_id {
-                    // Peer link: remote_interface_id is provided directly
-                    iface_index.get(&(remote_as, remote_if_id)).map(|(rn, ri)| {
-                        (
-                            rn.clone(),
-                            remote_if_id,
-                            ri.underlay.local,
-                            ri.underlay.remote,
-                        )
-                    })
-                } else {
-                    // Core/child/parent: find remote interface pointing back to local_as
-                    iface_index
-                        .iter()
-                        .find(|(key, (_, ri))| key.0 == remote_as && ri.isd_as == local_as)
-                        .map(|(key, (rn, ri))| {
-                            (rn.clone(), key.1, ri.underlay.local, ri.underlay.remote)
-                        })
-                };
+            let (local_isd_as, local_iface) = iface_index
+                .get(local_router_name)
+                .and_then(|m| m.get(&local_ifid))
+                .context(format!(
+                    "missing interface specification for iface with id {} on router {}",
+                    local_ifid, local_router_name
+                ))?;
 
-                let (remote_router, remote_if_id, remote_local, remote_remote) =
-                    match remote_endpoint {
-                        Some(ep) => ep,
-                        None => continue,
-                    };
+            let (remote_isd_as, _) = iface_index
+                .get(remote_router_name)
+                .and_then(|m| m.get(&remote_ifid))
+                .context(format!(
+                    "missing interface specification for iface with id {} on router {}",
+                    remote_ifid, remote_router_name
+                ))?;
 
-                let link_type = match iface.link_to.as_str() {
-                    "core" => LinkType::Core,
-                    "child" | "parent" => LinkType::Child,
-                    "peer" => LinkType::Peer,
-                    _ => continue,
-                };
-
-                links.push(Link {
-                    a: LinkEndpoint {
-                        as_id: local_as,
-                        router_name: router_name.clone(),
-                        interface_id: if_id,
-                        underlay_local: iface.underlay.local,
-                        underlay_remote: iface.underlay.remote,
-                    },
-                    b: LinkEndpoint {
-                        as_id: remote_as,
-                        router_name: remote_router,
-                        interface_id: remote_if_id,
-                        underlay_local: remote_local,
-                        underlay_remote: remote_remote,
-                    },
-                    link_type,
-                });
+            // Process each link only from the side with the smaller IsdAsn u64 value
+            if local_isd_as.0.to_u64() >= remote_isd_as.0.to_u64() {
+                continue;
             }
+
+            let link_type = match local_iface.link_to.as_str() {
+                "core" => LinkType::Core,
+                "child" | "parent" => LinkType::Child,
+                "peer" => LinkType::Peer,
+                _ => {
+                    bail!("unknown link type: {}", local_iface.link_to)
+                }
+            };
+
+            links.push(Link {
+                a: LinkEndpoint {
+                    as_id: *local_isd_as,
+                    router_name: local_router_name.to_string(),
+                    interface_id: local_ifid,
+                },
+                b: LinkEndpoint {
+                    as_id: *remote_isd_as,
+                    router_name: remote_router_name.to_string(),
+                    interface_id: remote_ifid,
+                },
+                link_type,
+            })
         }
     }
 
@@ -459,7 +503,13 @@ pub fn load_topology(gen_dir: &Path) -> Result<Topology, String> {
         })
         .collect::<Result<Vec<_>, String>>()?;
 
-    build_topology(raw_ases, hbird_map, sd_map)
+    let ifids_path = gen_dir.join("ifids.yml");
+    let router_link_config = std::fs::read_to_string(&ifids_path)
+        .map_err(|e| format!("Failed to read {}: {e}", ifids_path.display()))?;
+    let router_link_config = serde_yaml::from_str::<RawIfidConfig>(&router_link_config)
+        .map_err(|e| format!("Failed to parse {}: {e}", ifids_path.display()))?;
+
+    build_topology(raw_ases, hbird_map, sd_map, router_link_config)
         .map_err(|e| format!("Failed to build topology: {e}"))
 }
 

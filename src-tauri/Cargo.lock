@@ -5418,6 +5418,7 @@ dependencies = [
  "scionpings",
  "serde",
  "serde_json",
+ "serde_yaml",
  "specta",
  "specta-typescript",
  "tauri",

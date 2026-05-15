@@ -21,8 +21,8 @@ const twoAsTopology: Topology = {
   },
   links: [
     {
-      a: { as_id: "1-ff00:0:110", router_name: "br-110-1", interface_id: 1001, underlay_local: "a", underlay_remote: "b" },
-      b: { as_id: "1-ff00:0:111", router_name: "br-111-1", interface_id: 2001, underlay_local: "b", underlay_remote: "a" },
+      a: { as_id: "1-ff00:0:110", router_name: "br-110-1", interface_id: 1001},
+      b: { as_id: "1-ff00:0:111", router_name: "br-111-1", interface_id: 2001},
       link_type: "Child",
     },
   ],
@@ -35,8 +35,8 @@ const twoIsdTopology: Topology = {
   },
   links: [
     {
-      a: { as_id: "1-ff00:0:110", router_name: "br-110-1", interface_id: 1, underlay_local: "a", underlay_remote: "b" },
-      b: { as_id: "2-ff00:0:210", router_name: "br-210-1", interface_id: 2, underlay_local: "b", underlay_remote: "a" },
+      a: { as_id: "1-ff00:0:110", router_name: "br-110-1", interface_id: 1},
+      b: { as_id: "2-ff00:0:210", router_name: "br-210-1", interface_id: 2},
       link_type: "Core",
     },
   ],
