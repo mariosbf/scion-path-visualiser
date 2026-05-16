@@ -13,9 +13,9 @@ async getTopology() : Promise<Result<Topology, string>> {
     else return { status: "error", error: e  as any };
 }
 },
-async setupScionNetwork(scionFolder: string, topoFile: string) : Promise<Result<string, string>> {
+async setupScionNetwork(config: AppConfig) : Promise<Result<string, string>> {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("setup_scion_network", { scionFolder, topoFile }) };
+    return { status: "ok", data: await TAURI_INVOKE("setup_scion_network", { config }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
@@ -73,6 +73,7 @@ async getPaths(srcAs: string, dstAs: string) : Promise<Result<ScionPath[], strin
 
 /** user-defined types **/
 
+export type AppConfig = { scion_folder: string; topo_file: string; run_topology: boolean; running_mode: RunningMode }
 export type AsInfo = { core: boolean; mtu: number | null; control_service: ControlServiceInfo; discovery_service: DiscoveryServiceInfo; hummingbird: HbirdInfo | null; daemon: ScionDaemonInfo; endhost_api_bridge: EndhostApiBridgeInfo; border_routers: BorderRouterInfo[] }
 export type BorderRouterInfo = { name: string; internal_addr: string; interfaces: { [key in number]: BorderRouterInterfaceInfo }; status: ServiceStatusInfo | null }
 export type BorderRouterInterfaceInfo = { isd_as: string; link_to: string; mtu: number | null; underlay_local: string; underlay_remote: string }
@@ -83,6 +84,7 @@ export type HbirdInfo = { id: string; reservation_duration: string; min_bandwidt
 export type Link = { a: LinkEndpoint; b: LinkEndpoint; link_type: LinkType }
 export type LinkEndpoint = { as_id: string; router_name: string; interface_id: number }
 export type LinkType = "Core" | "Child" | "Peer"
+export type RunningMode = "Docker" | "Supervisord"
 export type ScionDaemonInfo = { id: string; address: string; api_addr: string; status: ServiceStatusInfo | null }
 export type ScionPath = { interfaces: ScionPathInterface[]; expiry: string; mtu: number }
 export type ScionPathInterface = { isd_as: string; interface_id: number }

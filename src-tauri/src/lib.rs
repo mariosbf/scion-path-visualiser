@@ -15,7 +15,7 @@ use tauri_specta::{collect_commands, Builder};
 
 use crate::ehapi_bridge::start_ehapi_bridges;
 use crate::topology::{load_topology, Topology};
-use crate::util::{clear_directory, copy_dir_all, stream_output};
+use crate::util::stream_output;
 
 pub type AppState = Mutex<AppStateInner>;
 
@@ -58,24 +58,41 @@ pub struct RunningState {
     status_task: tokio::task::JoinHandle<()>,
 }
 
+#[derive(Debug, Clone, serde::Deserialize, specta::Type)]
+pub enum RunningMode {
+    Docker,
+    Supervisord,
+}
+
+#[derive(Debug, Clone, serde::Deserialize, specta::Type)]
+pub struct AppConfig {
+    pub scion_folder: String,
+    pub topo_file: String,
+    pub run_topology: bool,
+    pub running_mode: RunningMode,
+}
+
 #[tauri::command]
 #[specta::specta]
 async fn setup_scion_network(
     app: tauri::AppHandle,
     state: tauri::State<'_, AppState>,
-    scion_folder: String,
-    topo_file: String,
+    config: AppConfig,
 ) -> Result<String, String> {
     use std::process::Stdio;
 
-    let scion_folder = std::path::Path::new(&scion_folder);
+    let scion_folder = std::path::Path::new(&config.scion_folder);
 
     app.emit("scion-setup-phase", "Generating topology configuration…")
         .ok();
 
     // Generate topology
+    let mut topo_args = vec!["topology", "-c", config.topo_file.as_str()];
+    if config.run_topology && matches!(config.running_mode, RunningMode::Docker) {
+        topo_args.push("-d");
+    }
     let mut child = tokio::process::Command::new("./scion.sh")
-        .args(["topology", "-c", &topo_file])
+        .args(&topo_args)
         .current_dir(scion_folder)
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
@@ -93,101 +110,102 @@ async fn setup_scion_network(
         return Err(format!("scion.sh topology exited with status {status}"));
     }
 
-    // Start SCION topology
-    app.emit("scion-setup-phase", "Starting SCION topology…")
-        .ok();
+    if config.run_topology {
+        // Start SCION topology
+        app.emit("scion-setup-phase", "Starting SCION topology…")
+            .ok();
 
-    let mut child = tokio::process::Command::new("./scion.sh")
-        .args(["start"])
-        .current_dir(scion_folder)
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn()
-        .map_err(|e| format!("Failed to spawn scion.sh: {e}"))?;
+        let mut start_args = vec!["start"];
+        if matches!(config.running_mode, RunningMode::Docker) {
+            start_args.push("-d");
+        }
+        let mut child = tokio::process::Command::new("./scion.sh")
+            .args(&start_args)
+            .current_dir(scion_folder)
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .map_err(|e| format!("Failed to spawn scion.sh: {e}"))?;
 
-    stream_output(&app, &mut child, "scion-setup-output").await?;
+        stream_output(&app, &mut child, "scion-setup-output").await?;
 
-    let status = child
-        .wait()
-        .await
-        .map_err(|e| format!("Failed to wait for scion.sh start: {e}"))?;
+        let status = child
+            .wait()
+            .await
+            .map_err(|e| format!("Failed to wait for scion.sh start: {e}"))?;
 
-    if !status.success() {
-        return Err(format!("scion.sh start exited with status {status}"));
+        if !status.success() {
+            return Err(format!("scion.sh start exited with status {status}"));
+        }
     }
 
-    // Read topoology and store in state
+    // Read topology and store in state
     let gen_dir = scion_folder.join("gen");
     let topo = load_topology(&gen_dir).map_err(|e| format!("Failed to load topology: {e}"))?;
 
-    // Start endhost API bridges
-    app.emit(
-        "scion-setup-phase",
-        "Starting endhost API bridges".to_string(),
-    )
-    .ok();
-    let ehapi_token_dir = app
-        .path()
-        .app_data_dir()
-        .map_err(|e| format!("Cannot resolve app data dir: {e}"))?
-        .join("ehapi-bridge-tokens");
-    let ehapi_bridge_log_dir = scion_folder.join("logs");
-
-    let ehapi_bridges = start_ehapi_bridges(&ehapi_bridge_log_dir, &ehapi_token_dir, &topo)?;
-
-    // Copy gen folder to backup location
-    let src_gen = std::path::Path::new(&scion_folder).join("gen");
-    let app_data_dir = app
-        .path()
-        .app_data_dir()
-        .map_err(|e| format!("Cannot resolve app data dir: {e}"))?;
-    let project_name = std::path::Path::new(&scion_folder)
-        .file_name()
-        .and_then(|n| n.to_str())
-        .unwrap_or("project");
-    let dst_gen = app_data_dir.join("projects").join(project_name).join("gen");
-
-    clear_directory(&dst_gen)?;
-    copy_dir_all(&src_gen, &dst_gen)?;
-
-    dst_gen
-        .to_str()
-        .map(|s: &str| s.to_string())
-        .ok_or_else(|| "Generated path contains invalid Unicode".to_string())?;
+    // Start endhost API bridges (only when running the topology)
+    let ehapi_bridges = if config.run_topology {
+        app.emit(
+            "scion-setup-phase",
+            "Starting endhost API bridges".to_string(),
+        )
+        .ok();
+        let ehapi_token_dir = app
+            .path()
+            .app_data_dir()
+            .map_err(|e| format!("Cannot resolve app data dir: {e}"))?
+            .join("ehapi-bridge-tokens");
+        let ehapi_bridge_log_dir = scion_folder.join("logs");
+        start_ehapi_bridges(
+            &ehapi_bridge_log_dir,
+            &ehapi_token_dir,
+            &topo,
+            matches!(config.running_mode, RunningMode::Docker),
+        )?
+    } else {
+        EhapiBridgeMap::new()
+    };
 
     // Spawn periodic status check
     let app_for_status = app.clone();
     let folder_for_status = scion_folder.to_path_buf();
-    let status_task = tokio::spawn(async move {
-        use crate::status::{apply_status_update, parse_status};
+    let status_task = if config.run_topology
+        && matches!(config.running_mode, RunningMode::Supervisord)
+    {
+        tokio::spawn(async move {
+            use crate::status::{apply_status_update, parse_status};
 
-        let mut interval = tokio::time::interval(Duration::from_secs(5));
-        loop {
-            interval.tick().await;
-            info!("Reading SCION network status");
-            let Ok(output) = tokio::process::Command::new("./scion.sh")
-                .arg("status")
-                .current_dir(&folder_for_status)
-                .output()
-                .await
-            else {
-                continue;
-            };
-            let output = String::from_utf8_lossy(&output.stdout);
+            let mut interval = tokio::time::interval(Duration::from_secs(5));
+            loop {
+                interval.tick().await;
+                info!("Reading SCION network status");
+                let Ok(output) = tokio::process::Command::new("./scion.sh")
+                    .arg("status")
+                    .current_dir(&folder_for_status)
+                    .output()
+                    .await
+                else {
+                    continue;
+                };
+                let output = String::from_utf8_lossy(&output.stdout);
 
-            let Ok(statuses) = parse_status(&output) else {
-                continue;
-            };
-            let state = app_for_status.state::<AppState>();
-            let mut guard = state.lock().unwrap();
-            if let AppStateInner::Running(running) = &mut *guard {
-                apply_status_update(&mut running.topology, statuses, chrono::Utc::now());
-                app.emit("status-update", running.topology.clone())
-                    .inspect_err(|e| tracing::warn!("Failed to emit status-update event: {e}"))
-                    .ok();
+                let Ok(statuses) = parse_status(&output) else {
+                    continue;
+                };
+                let state = app_for_status.state::<AppState>();
+                let mut guard = state.lock().unwrap();
+                if let AppStateInner::Running(running) = &mut *guard {
+                    apply_status_update(&mut running.topology, statuses, chrono::Utc::now());
+                    app.emit("status-update", running.topology.clone())
+                        .inspect_err(|e| tracing::warn!("Failed to emit status-update event: {e}"))
+                        .ok();
+                }
             }
-        }
-    });
+        })
+    } else {
+        // No need to check status if we're not running the topology or if we're using Docker (since we won't have supervisord)
+        tokio::spawn(async {})
+    };
 
     // Set application state to running
     *state.lock().unwrap() = AppStateInner::Running(RunningState {

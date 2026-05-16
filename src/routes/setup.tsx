@@ -14,11 +14,13 @@ import {
   Radio,
   RadioIndicator,
   Title,
+  Switch,
+  Select,
 } from "@mantine/core";
 import { open } from "@tauri-apps/plugin-dialog";
 import { listen } from "@tauri-apps/api/event";
 import { createFileRoute, redirect, useNavigate } from "@tanstack/react-router";
-import { commands } from "../bindings";
+import { commands, type AppConfig, type RunningMode } from "../bindings";
 
 export const Route = createFileRoute("/setup")({
   beforeLoad: async () => {
@@ -35,10 +37,10 @@ import logo from "../assets/logo.png";
 import classes from "./Setup.module.css";
 import { IconArrowLeft } from "@tabler/icons-react";
 
-interface WizardState {
-  folder: string | null;
-  topoFile: string | null;
-}
+type WizardState = Omit<AppConfig, "scion_folder" | "topo_file"> & {
+  scion_folder: string | null;
+  topo_file: string | null;
+};
 
 const STEPS = [
   {
@@ -48,6 +50,10 @@ const STEPS = [
   {
     label: "Topology",
     desc: "Choose the topology file to load.",
+  },
+  {
+    label: "Configuration",
+    desc: "Choose how to run the topology.",
   },
   {
     label: "Loading",
@@ -84,20 +90,33 @@ function BarStepper({ active }: { active: number }) {
 export function SetupWizard() {
   const [active, setActive] = useState(0);
   const [state, setState] = useState<WizardState>({
-    folder: null,
-    topoFile: null,
+    scion_folder: null,
+    topo_file: null,
+    run_topology: true,
+    running_mode: "Supervisord",
   });
 
   const nextStep = () => setActive((a) => a + 1);
   const prevStep = () => setActive((a) => Math.max(0, a - 1));
   const reset = () => {
-    setState({ folder: null, topoFile: null });
+    setState({
+      scion_folder: null,
+      topo_file: null,
+      run_topology: true,
+      running_mode: "Supervisord",
+    });
     setActive(0);
   };
 
-  const canNext = [state.folder !== null, state.topoFile !== null, true, false];
+  const canNext = [
+    state.scion_folder !== null,
+    state.topo_file !== null,
+    true,
+    true,
+    false,
+  ];
 
-  const isLoading = active === 2;
+  const isLoading = active === 3;
 
   return (
     <Stack mih="100vh">
@@ -126,23 +145,38 @@ export function SetupWizard() {
             <Box flex={1}>
               {active === 0 && (
                 <FolderStep
-                  selected={state.folder}
-                  onSelect={(folder) => setState((s) => ({ ...s, folder }))}
+                  selected={state.scion_folder}
+                  onSelect={(folder) =>
+                    setState((s) => ({ ...s, scion_folder: folder }))
+                  }
                 />
               )}
               {active === 1 && (
                 <TopologyStep
-                  folder={state.folder ?? ""}
-                  selected={state.topoFile}
-                  onSelect={(topoFile) => setState((s) => ({ ...s, topoFile }))}
+                  folder={state.scion_folder ?? ""}
+                  selected={state.topo_file}
+                  onSelect={(topoFile) =>
+                    setState((s) => ({ ...s, topo_file: topoFile }))
+                  }
                 />
               )}
               {active === 2 && (
-                <LoadingStep
-                  folder={state.folder ?? ""}
-                  topoFile={state.topoFile ?? ""}
-                  onStartOver={reset}
+                <ConfigStep
+                  runTopology={state.run_topology}
+                  runningMode={state.running_mode}
+                  onRunTopologyChange={(v) =>
+                    setState((s) => ({ ...s, run_topology: v }))
+                  }
+                  onRunningModeChange={(v) =>
+                    setState((s) => ({
+                      ...s,
+                      running_mode: v ?? "Supervisord",
+                    }))
+                  }
                 />
+              )}
+              {active === 3 && (
+                <LoadingStep config={state as AppConfig} onStartOver={reset} />
               )}
             </Box>
           </Stack>
@@ -298,13 +332,40 @@ function TopologyStep({
   );
 }
 
+function ConfigStep({
+  runTopology,
+  runningMode,
+  onRunTopologyChange,
+  onRunningModeChange,
+}: {
+  runTopology: boolean;
+  runningMode: RunningMode;
+  onRunTopologyChange: (v: boolean) => void;
+  onRunningModeChange: (v: RunningMode | null) => void;
+}) {
+  return (
+    <Stack gap="md">
+      <Switch
+        label="Run topology"
+        checked={runTopology}
+        onChange={(e) => onRunTopologyChange(e.currentTarget.checked)}
+      />
+      <Select
+        label="Select running configuration"
+        data={["Docker", "Supervisord"]}
+        value={runningMode}
+        onChange={onRunningModeChange}
+        disabled={!runTopology}
+      />
+    </Stack>
+  );
+}
+
 function LoadingStep({
-  folder,
-  topoFile,
+  config,
   onStartOver,
 }: {
-  folder: string;
-  topoFile: string;
+  config: AppConfig;
   onStartOver: () => void;
 }) {
   const navigate = useNavigate();
@@ -336,7 +397,7 @@ function LoadingStep({
       cleanupOutput = unlistenOutput;
       cleanupPhase = unlistenPhase;
 
-      const setupResult = await commands.setupScionNetwork(folder, topoFile);
+      const setupResult = await commands.setupScionNetwork(config);
       if (cancelled) return;
       if (setupResult.status === "error") {
         setError(setupResult.error);
@@ -350,7 +411,7 @@ function LoadingStep({
         return;
       }
 
-      await pushRecent("recent-scion-folders", folder);
+      await pushRecent("recent-scion-folders", config.scion_folder);
       navigate({ to: "/app/topology" });
     }
 
@@ -361,7 +422,7 @@ function LoadingStep({
       cleanupOutput?.();
       cleanupPhase?.();
     };
-  }, [folder, topoFile, navigate]);
+  }, [config, navigate]);
 
   if (error) {
     return (

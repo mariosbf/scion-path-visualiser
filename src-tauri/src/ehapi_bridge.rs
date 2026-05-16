@@ -1,12 +1,17 @@
-use std::{collections::HashMap, path::Path, sync::Arc};
+use std::{collections::HashMap, path::Path, process::Command, sync::Arc};
 
+use nix::fcntl::OFlag;
+use nix::sched::{setns, CloneFlags};
+use nix::sys::stat::Mode;
+
+use anyhow::{bail, Context};
 use scion_sdk_observability::metrics::registry::MetricsRegistry;
 use scionpings::endhost_api_bridge::{
     self,
     config::UdpRouterRuntimeConfig,
     token_authority::{TokenAuthority, TokenIdentity},
 };
-use tauri_plugin_log::log::debug;
+use tauri_plugin_log::log::{debug, warn};
 use tokio_util::sync::CancellationToken;
 use url::Url;
 
@@ -15,10 +20,40 @@ use crate::{
     AppState, EhapiBridgeMap,
 };
 
+fn enter_docker_ns(container: &str) -> anyhow::Result<()> {
+    let output = Command::new("docker")
+        .args(["inspect", "-f", "{{.State.Pid}}", container])
+        .output()
+        .context("failed to run docker inspect")?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        bail!("docker inspect failed: {}", stderr.trim());
+    }
+
+    let pid: u32 = String::from_utf8(output.stdout)
+        .context("invalid utf-8 in docker output")?
+        .trim()
+        .parse()
+        .context("failed to parse container pid")?;
+
+    if pid == 0 {
+        bail!("container is not running (pid 0)");
+    }
+
+    let ns_path = format!("/proc/{}/ns/net", pid);
+    let fd = nix::fcntl::open(ns_path.as_str(), OFlag::O_RDONLY, Mode::empty())
+        .with_context(|| format!("failed to open {}", ns_path))?;
+    setns(&fd, CloneFlags::CLONE_NEWNET).context("failed to setns")?;
+
+    Ok(())
+}
+
 pub fn start_ehapi_bridges(
     log_folder: &Path,
     token_dir: &Path,
     topology: &Topology,
+    use_docker_ns: bool,
 ) -> Result<EhapiBridgeMap, String> {
     let mut map = HashMap::new();
 
@@ -90,9 +125,16 @@ pub fn start_ehapi_bridges(
             .map_err(|e| format!("Failed to create log file for AS {}: {e}", isd_as.0))?;
         let (non_blocking_writer, guard) = tracing_appender::non_blocking(log_file);
 
+        let cs_name = as_info.control_service.name.clone();
+
         std::thread::Builder::new()
             .name(format!("ehapi-bridge-{}", isd_as.0))
             .spawn(move || {
+                if use_docker_ns && enter_docker_ns(&format!("scion-{}-1", cs_name)).is_err() {
+                    warn!("Failed to enter Docker namespace for AS {}?", isd_as.0,);
+                    return;
+                }
+
                 let subscriber = tracing_subscriber::fmt()
                     .with_max_level(tracing::Level::DEBUG)
                     .with_writer(non_blocking_writer)

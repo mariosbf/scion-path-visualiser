@@ -1,18 +1,15 @@
 import {
-  ActionIcon,
-  AppShell,
-  Box,
-  Divider,
-  Stack,
-  useMantineColorScheme,
+    AppShell,
+    Box,
+    Divider,
+    Menu,
+    Stack
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import {
-  IconArrowLoopLeft,
-  IconMoon,
-  IconSun,
-  IconTopologyComplex,
-  TablerIcon,
+    IconArrowLoopLeft,
+    IconTopologyComplex,
+    TablerIcon
 } from "@tabler/icons-react";
 import { createFileRoute, Outlet } from "@tanstack/react-router";
 import { NavHeader } from "../components/NavHeader";
@@ -34,7 +31,6 @@ const NAV_ITEMS: Array<{
 
 export function AppLayout() {
   const [opened, { toggle }] = useDisclosure(true);
-  const { colorScheme, toggleColorScheme } = useMantineColorScheme();
 
   return (
     <Box pos="relative" style={{ height: "100vh" }}>
@@ -56,28 +52,9 @@ export function AppLayout() {
           </AppShell.Section>
           <AppShell.Section>
             <Divider mb={8} />
-            <Box
-              p={8}
-              pb={16}
-              style={{
-                display: "flex",
-                justifyContent: opened ? "flex-start" : "center",
-              }}
-            >
-              <ActionIcon
-                variant="subtle"
-                color="gray"
-                size="lg"
-                onClick={toggleColorScheme}
-                aria-label="Toggle color scheme"
-              >
-                {colorScheme === "dark" ? (
-                  <IconSun size={20} stroke={1.5} />
-                ) : (
-                  <IconMoon size={20} stroke={1.5} />
-                )}
-              </ActionIcon>
-            </Box>
+            <Menu>
+
+            </Menu>
           </AppShell.Section>
         </AppShell.Navbar>
         <AppShell.Main style={{ height: "100vh" }}>

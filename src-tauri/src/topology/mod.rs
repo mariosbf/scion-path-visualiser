@@ -582,7 +582,7 @@ mod tests {
 
     #[test]
     fn build_topology_produces_correct_ases() {
-        let topo = build_topology(make_fixture(), HashMap::new(), make_sd_fixture()).unwrap();
+        let topo = build_topology(make_fixture(), HashMap::new(), make_sd_fixture(), RawIfidConfig { by_as: HashMap::new() }).unwrap();
         assert_eq!(topo.ases.len(), 2);
         let as110 = topo
             .ases
@@ -601,7 +601,7 @@ mod tests {
 
     #[test]
     fn build_topology_deduplicates_to_one_link() {
-        let topo = build_topology(make_fixture(), HashMap::new(), make_sd_fixture()).unwrap();
+        let topo = build_topology(make_fixture(), HashMap::new(), make_sd_fixture(), RawIfidConfig { by_as: HashMap::new() }).unwrap();
         assert_eq!(topo.links.len(), 1);
     }
 
