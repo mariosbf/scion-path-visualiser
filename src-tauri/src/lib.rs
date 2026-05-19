@@ -6,7 +6,6 @@ pub mod util;
 
 use scion_proto::address::IsdAsn;
 use scionpings::endhost_api_bridge;
-use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use std::{collections::HashMap, time::Duration};
 use tauri::{Emitter, Manager};
@@ -53,7 +52,7 @@ pub type EhapiBridgeMap = HashMap<IsdAsn, Arc<endhost_api_bridge::state::AppStat
 
 pub struct RunningState {
     topology: Topology,
-    scion_folder: PathBuf,
+    config: AppConfig,
     ehapi_bridges: EhapiBridgeMap,
     status_task: tokio::task::JoinHandle<()>,
 }
@@ -210,12 +209,75 @@ async fn setup_scion_network(
     // Set application state to running
     *state.lock().unwrap() = AppStateInner::Running(RunningState {
         topology: topo,
-        scion_folder: std::path::PathBuf::from(scion_folder),
+        config,
         ehapi_bridges,
         status_task,
     });
 
     Ok("SCION network setup complete".to_string())
+}
+
+#[tauri::command]
+#[specta::specta]
+async fn restart_scion_network(
+    app: tauri::AppHandle,
+    state: tauri::State<'_, AppState>,
+) -> Result<String, String> {
+    use std::process::Stdio;
+
+    let config = {
+        let guard = state.lock().unwrap();
+        let running = guard.running()?;
+        running.config.clone()
+    };
+
+    app.emit("scion-setup-phase", "Stopping SCION topology…")
+        .ok();
+
+    let mut child = tokio::process::Command::new("./scion.sh")
+        .args(vec!["stop"])
+        .current_dir(&config.scion_folder)
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .map_err(|e| format!("Failed to spawn scion.sh stop: {e}"))?;
+
+    stream_output(&app, &mut child, "scion-setup-output").await?;
+
+    let status = child
+        .wait()
+        .await
+        .map_err(|e| format!("Failed to wait for scion.sh stop: {e}"))?;
+    if !status.success() {
+        return Err(format!("scion.sh stop exited with status {status}"));
+    }
+
+    app.emit("scion-setup-phase", "Starting SCION topology…")
+        .ok();
+
+    let mut start_args = vec!["start"];
+    if matches!(config.running_mode, RunningMode::Docker) {
+        start_args.push("-d");
+    }
+    let mut child = tokio::process::Command::new("./scion.sh")
+        .args(&start_args)
+        .current_dir(&config.scion_folder)
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .map_err(|e| format!("Failed to spawn scion.sh start: {e}"))?;
+
+    stream_output(&app, &mut child, "scion-setup-output").await?;
+
+    let status = child
+        .wait()
+        .await
+        .map_err(|e| format!("Failed to wait for scion.sh start: {e}"))?;
+    if !status.success() {
+        return Err(format!("scion.sh start exited with status {status}"));
+    }
+
+    Ok("SCION network restarted".to_string())
 }
 
 #[tauri::command]
@@ -243,7 +305,7 @@ async fn start_log_stream(
 
     let log_path = {
         let state = app_state.lock().unwrap();
-        let folder = state.running()?.scion_folder.clone();
+        let folder = state.running()?.config.scion_folder.clone();
         std::path::Path::new(&folder)
             .join("logs")
             .join(format!("{service_name}.log"))
@@ -369,6 +431,7 @@ pub fn run() {
     let builder = Builder::<tauri::Wry>::new().commands(collect_commands![
         get_topology,
         setup_scion_network,
+        restart_scion_network,
         list_topology_files,
         start_log_stream,
         stop_log_stream,

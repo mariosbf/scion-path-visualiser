@@ -21,6 +21,14 @@ async setupScionNetwork(config: AppConfig) : Promise<Result<string, string>> {
     else return { status: "error", error: e  as any };
 }
 },
+async restartScionNetwork() : Promise<Result<string, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("restart_scion_network") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
 async listTopologyFiles(folder: string) : Promise<Result<string[], string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("list_topology_files", { folder }) };

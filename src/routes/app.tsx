@@ -1,19 +1,14 @@
-import {
-    AppShell,
-    Box,
-    Divider,
-    Menu,
-    Stack
-} from "@mantine/core";
+import { AppShell, Box, Divider, Stack } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import {
-    IconArrowLoopLeft,
-    IconTopologyComplex,
-    TablerIcon
+  IconArrowLoopLeft,
+  IconTopologyComplex,
+  TablerIcon,
 } from "@tabler/icons-react";
 import { createFileRoute, Outlet } from "@tanstack/react-router";
 import { NavHeader } from "../components/NavHeader";
 import { NavItem } from "../components/NavItem";
+import { RestartNetworkButton } from "../components/RestartNetworkButton";
 import { FileRouteTypes } from "../routeTree.gen";
 
 export const Route = createFileRoute("/app")({
@@ -52,9 +47,9 @@ export function AppLayout() {
           </AppShell.Section>
           <AppShell.Section>
             <Divider mb={8} />
-            <Menu>
-
-            </Menu>
+            <Box p={4} mb={5}>
+              <RestartNetworkButton expanded={opened} />
+            </Box>
           </AppShell.Section>
         </AppShell.Navbar>
         <AppShell.Main style={{ height: "100vh" }}>
