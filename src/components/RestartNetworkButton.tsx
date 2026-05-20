@@ -1,4 +1,12 @@
-import { Button, Loader, Modal, NavLink, Stack, Text } from "@mantine/core";
+import {
+  Button,
+  Group,
+  Loader,
+  Modal,
+  NavLink,
+  Stack,
+  Text,
+} from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { listen } from "@tauri-apps/api/event";
 import { IconRefresh } from "@tabler/icons-react";
@@ -8,6 +16,8 @@ import { TerminalOutput } from "./TerminalOutput";
 
 export function RestartNetworkButton({ expanded }: { expanded: boolean }) {
   const [opened, { open, close }] = useDisclosure(false);
+  const [confirmOpened, { open: openConfirm, close: closeConfirm }] =
+    useDisclosure(false);
   const [lines, setLines] = useState<string[]>([]);
   const [title, setTitle] = useState<string>("…");
   const [error, setError] = useState<string | null>(null);
@@ -43,14 +53,37 @@ export function RestartNetworkButton({ expanded }: { expanded: boolean }) {
         label={expanded ? "Restart network" : undefined}
         leftSection={<IconRefresh size={20} stroke={1.5} />}
         rightSection={running ? <Loader size="xs" /> : <></>}
-        color="orange"
         styles={{
           root: { borderRadius: "var(--mantine-radius-sm)" },
           label: { fontSize: 14, fontWeight: 500 },
         }}
-        onClick={handleClick}
+        onClick={openConfirm}
         disabled={running}
       />
+      <Modal
+        opened={confirmOpened}
+        onClose={closeConfirm}
+        title="Restart network?"
+        size="sm"
+      >
+        <Text size="sm">
+          This will stop and restart the SCION network. Continue?
+        </Text>
+        <Group justify="flex-end" mt="md">
+          <Button variant="default" onClick={closeConfirm}>
+            Cancel
+          </Button>
+          <Button
+            color="red"
+            onClick={() => {
+              closeConfirm();
+              handleClick();
+            }}
+          >
+            Restart
+          </Button>
+        </Group>
+      </Modal>
       <Modal
         opened={opened}
         onClose={close}
