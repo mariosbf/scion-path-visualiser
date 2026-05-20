@@ -9,6 +9,7 @@ import { createFileRoute, Outlet } from "@tanstack/react-router";
 import { NavHeader } from "../components/NavHeader";
 import { NavItem } from "../components/NavItem";
 import { RestartNetworkButton } from "../components/RestartNetworkButton";
+import { ReturnToSetupButton } from "../components/ReturnToSetupButton";
 import { FileRouteTypes } from "../routeTree.gen";
 
 export const Route = createFileRoute("/app")({
@@ -49,6 +50,7 @@ export function AppLayout() {
             <Divider mb={8} />
             <Box p={4} mb={5}>
               <RestartNetworkButton expanded={opened} />
+              <ReturnToSetupButton expanded={opened} />
             </Box>
           </AppShell.Section>
         </AppShell.Navbar>

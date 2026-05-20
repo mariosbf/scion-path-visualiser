@@ -282,6 +282,56 @@ async fn restart_scion_network(
 
 #[tauri::command]
 #[specta::specta]
+async fn reset_to_setup(
+    app: tauri::AppHandle,
+    state: tauri::State<'_, AppState>,
+) -> Result<(), String> {
+    use std::process::Stdio;
+
+    let (scion_folder, run_topology) = {
+        let guard = state.lock().unwrap();
+        let running = guard.running()?;
+        (running.config.scion_folder.clone(), running.config.run_topology)
+    };
+
+    if run_topology {
+        app.emit("scion-setup-phase", "Stopping SCION topology…").ok();
+
+        let mut child = tokio::process::Command::new("./scion.sh")
+            .args(["stop"])
+            .current_dir(&scion_folder)
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .map_err(|e| format!("Failed to spawn scion.sh stop: {e}"))?;
+
+        stream_output(&app, &mut child, "scion-setup-output").await?;
+
+        let status = child
+            .wait()
+            .await
+            .map_err(|e| format!("Failed to wait for scion.sh stop: {e}"))?;
+        if !status.success() {
+            return Err(format!("scion.sh stop exited with status {status}"));
+        }
+    }
+
+    let old = {
+        let mut guard = state.lock().unwrap();
+        std::mem::replace(&mut *guard, AppStateInner::Setup)
+    };
+    if let AppStateInner::Running(running) = old {
+        running.status_task.abort();
+        for bridge in running.ehapi_bridges.values() {
+            bridge.cancel.cancel();
+        }
+    }
+
+    Ok(())
+}
+
+#[tauri::command]
+#[specta::specta]
 fn get_topology(state: tauri::State<'_, AppState>) -> Result<Topology, String> {
     Ok(state.lock().unwrap().running()?.topology.clone())
 }
@@ -432,6 +482,7 @@ pub fn run() {
         get_topology,
         setup_scion_network,
         restart_scion_network,
+        reset_to_setup,
         list_topology_files,
         start_log_stream,
         stop_log_stream,
