@@ -20,8 +20,8 @@ import { DiscoveryServiceDrawer } from "./drawers/DiscoveryServiceDrawer";
 import { EndhostApiBridgeDrawer } from "./drawers/EndhostApiBridgeDrawer";
 import { HummingbirdDrawer } from "./drawers/HummingbirdDrawer";
 import { InfoItem } from "./drawers/InfoItem";
-import type { RouterSelection } from "./drawers/RouterDetailDrawer";
-import { RouterDetailDrawer } from "./drawers/RouterDetailDrawer";
+import type { InterfaceSelection } from "./drawers/InterfaceDetailDrawer";
+import { InterfaceDetailDrawer } from "./drawers/InterfaceDetailDrawer";
 
 interface Props {
   topology: Topology;
@@ -37,14 +37,14 @@ export function TopologyView({ topology }: Props) {
     "service-daemon",
     "service-hbird",
     "service-discovery",
-    "router-detail",
+    "interface-detail",
     "as-detail",
     "ehapi-bridge",
   ]);
   const { open: openDrawer, closeAll: closeAllDrawers } = drawersStack;
 
   const [activeAsId, setActiveAsId] = useState<string | null>(null);
-  const [activeRouter, setActiveRouter] = useState<RouterSelection | null>(
+  const [activeInterface, setActiveInterface] = useState<InterfaceSelection | null>(
     null,
   );
 
@@ -59,16 +59,16 @@ export function TopologyView({ topology }: Props) {
       setActiveAsId(selected.data.asId);
       openDrawer("as-detail");
     } else if (
-      selected.type === "border-router" &&
-      selectedInfo?.type === "border-router"
+      selected.type === "border-router-interface" &&
+      selectedInfo?.type === "border-router-interface"
     ) {
       setActiveAsId(selected.data.asId);
-      setActiveRouter({
+      setActiveInterface({
         router: selectedInfo.data,
         asId: selectedInfo.asId,
         interfaceId: selectedInfo.interfaceId,
       });
-      openDrawer("router-detail");
+      openDrawer("interface-detail");
     }
   }, [selected, selectedInfo, openDrawer, closeAllDrawers]);
 
@@ -115,9 +115,9 @@ export function TopologyView({ topology }: Props) {
         }}
         selection={activeAsSelection}
         onViewService={(id: ServiceDrawerId) => drawersStack.open(id)}
-        onViewRouter={(r: RouterSelection) => {
-          setActiveRouter(r);
-          drawersStack.open("router-detail");
+        onViewInterface={(r: InterfaceSelection) => {
+          setActiveInterface(r);
+          drawersStack.open("interface-detail");
         }}
       />
 
@@ -145,9 +145,9 @@ export function TopologyView({ topology }: Props) {
         {...drawersStack.register("service-discovery")}
         info={activeAsInfo?.discovery_service ?? null}
       />
-      <RouterDetailDrawer
-        {...drawersStack.register("router-detail")}
-        selection={activeRouter}
+      <InterfaceDetailDrawer
+        {...drawersStack.register("interface-detail")}
+        selection={activeInterface}
         onClose={() => {
           setSelected(undefined);
         }}

@@ -1,7 +1,7 @@
 import { Handle, Position, type NodeProps, type Node } from "@xyflow/react";
-import type { RouterNodeData } from "../../lib/topology";
+import type { InterfaceNodeData } from "../../lib/topology";
 
-export type RouterNodeType = Node<RouterNodeData, "router">;
+export type InterfaceNodeType = Node<InterfaceNodeData, "interface">;
 
 const sideToPosition: Record<string, Position> = {
   top: Position.Top,
@@ -10,7 +10,7 @@ const sideToPosition: Record<string, Position> = {
   right: Position.Right,
 };
 
-export function RouterNode({ data }: NodeProps<RouterNodeType>) {
+export function InterfaceNode({ data }: NodeProps<InterfaceNodeType>) {
   const pos = sideToPosition[data.handleSide ?? "bottom"];
   return (
     <>

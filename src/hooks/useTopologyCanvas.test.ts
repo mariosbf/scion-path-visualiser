@@ -13,6 +13,7 @@ const stubRouter = {
       mtu: 1472,
       underlay_local: "127.0.0.1:50000",
       underlay_remote: "127.0.0.2:50000",
+      net_cond: null,
     },
   },
   status: null,
@@ -85,12 +86,12 @@ describe("resolveSelectedInfo", () => {
 
   it("resolves border-router selection to BorderRouterInfo by interfaceId", () => {
     const selected: TopologyCanvasItem = {
-      type: "border-router",
+      type: "border-router-interface",
       data: { label: "1001", asId: "1-ff00:0:110", interfaceId: 1001 },
     };
     const result = resolveSelectedInfo(selected, stubTopology);
-    expect(result?.type).toBe("border-router");
-    if (result?.type === "border-router") {
+    expect(result?.type).toBe("border-router-interface");
+    if (result?.type === "border-router-interface") {
       expect(result.data.name).toBe("br-110-1");
       expect(result.asId).toBe("1-ff00:0:110");
       expect(result.interfaceId).toBe(1001);
@@ -99,7 +100,7 @@ describe("resolveSelectedInfo", () => {
 
   it("returns undefined for border-router with unknown interfaceId", () => {
     const selected: TopologyCanvasItem = {
-      type: "border-router",
+      type: "border-router-interface",
       data: { label: "99", asId: "1-ff00:0:110", interfaceId: 9999 },
     };
     expect(resolveSelectedInfo(selected, stubTopology)).toBeUndefined();

@@ -131,7 +131,7 @@ pub fn start_ehapi_bridges(
             .name(format!("ehapi-bridge-{}", isd_as.0))
             .spawn(move || {
                 if use_docker_ns && enter_docker_ns(&format!("scion-{}-1", cs_name)).is_err() {
-                    warn!("Failed to enter Docker namespace for AS {}?", isd_as.0,);
+                    warn!("Failed to enter Docker namespace for AS {}.", isd_as.0,);
                     return;
                 }
 

@@ -18,7 +18,7 @@ import type {
   AsNodeData,
   EdgeData,
   IsdNodeData,
-  RouterNodeData,
+  InterfaceNodeData,
   TopologyEdge,
   TopologyNode,
 } from "../lib/topology";
@@ -26,7 +26,7 @@ import { buildGraph } from "../lib/topology";
 import { HighlightedEdge } from "./edges/HighlightedEdge";
 import { AsNode } from "./nodes/AsNode";
 import { IsdNode } from "./nodes/IsdNode";
-import { RouterNode } from "./nodes/RouterNode";
+import { InterfaceNode } from "./nodes/InterfaceNode";
 import type { TopologyCanvasItem } from "../hooks/useTopologyCanvas";
 
 export type { TopologyCanvasItem } from "../hooks/useTopologyCanvas";
@@ -38,7 +38,7 @@ export interface TopologyCanvasProps {
   onGraphReady?: (nodes: TopologyNode[], edges: TopologyEdge[]) => void;
 }
 
-const nodeTypes: NodeTypes = { isd: IsdNode, as: AsNode, router: RouterNode };
+const nodeTypes: NodeTypes = { isd: IsdNode, as: AsNode, interface: InterfaceNode };
 const edgeTypes: EdgeTypes = { highlighted: HighlightedEdge };
 
 const edgeStyle = {
@@ -72,8 +72,8 @@ export function TopologyCanvas({
         onComponentClick({ type: "isd", data: node.data as IsdNodeData });
       } else if (node.type === "as") {
         onComponentClick({ type: "as", data: node.data as AsNodeData });
-      } else if (node.type === "router") {
-        onComponentClick({ type: "border-router", data: node.data as RouterNodeData });
+      } else if (node.type === "interface") {
+        onComponentClick({ type: "border-router-interface", data: node.data as InterfaceNodeData });
       }
     },
     [onComponentClick],

@@ -1,0 +1,249 @@
+#!/usr/bin/env bash
+# netcond.sh — Per-link network condition control for SCION docker topology.
+#
+# Uses nsenter to apply tc-netem in each BR container's network namespace from
+# the host, so iproute2 need not be installed inside the container image.
+# Requires root (sudo) for nsenter.
+#
+# Usage:
+#   ./netcond.sh links
+#   ./netcond.sh set   <br-name> <ifid> [delay <ms>] [loss <%>] [rate <kbps>] [dup <%>] [corrupt <%>] [reorder <%>]
+#   ./netcond.sh clear <br-name> <ifid>
+#   ./netcond.sh clear-all
+#   ./netcond.sh status
+#
+# Examples:
+#   ./netcond.sh set br1-ff00_0_110-1 1 delay 50 loss 1
+#   ./netcond.sh set br1-ff00_0_111-1 41 delay 50          # other side same link
+#   ./netcond.sh clear br1-ff00_0_110-1 1
+#   ./netcond.sh status
+
+set -euo pipefail
+
+COMPOSE_PROJECT="${COMPOSE_PROJECT:-scion}"
+GEN_DIR="${GEN_DIR:-$(cd "$(dirname "$0")" && pwd)/gen}"
+
+# ── helpers ────────────────────────────────────────────────────────────────────
+
+die() { echo "ERROR: $*" >&2; exit 1; }
+
+require_root() {
+    [[ $EUID -eq 0 ]] || die "This command requires root. Run with sudo."
+}
+
+# Normalize an underlay address (IPv4 or IPv6) to a plain IP address.
+# Input forms:  "1.2.3.4:port"  or  "[::1]:port"
+normalize_ip() {
+    local addr="$1"
+    if [[ "$addr" =~ ^\[(.+)\]:[0-9]+$ ]]; then
+        echo "${BASH_REMATCH[1]}"          # IPv6
+    else
+        echo "${addr%:*}"                  # IPv4
+    fi
+}
+
+# Return the container name for a given BR service name.
+get_container() {
+    local service="$1"
+    docker ps \
+        --filter "label=com.docker.compose.project=${COMPOSE_PROJECT}" \
+        --filter "label=com.docker.compose.service=${service}" \
+        --format "{{.Names}}" | head -1
+}
+
+# Return the PID of a running container (needed for nsenter).
+get_pid() {
+    docker inspect --format '{{.State.Pid}}' "$1"
+}
+
+# Find the interface name inside a network namespace that holds a given IP.
+find_iface_by_ip() {
+    local pid="$1"
+    local ip="$2"
+    # ip -o addr: "2: eth0    inet 172.20.0.2/29 ..."
+    nsenter -t "$pid" -n ip -o addr show \
+        | awk -v ip="$ip" '$4 ~ ("^" ip "/") { print $2; exit }'
+}
+
+# Parse all topology.json files; print TSV: br ifid local_addr remote_addr peer_isd_as link_to
+list_all_interfaces() {
+    for topo in "$GEN_DIR"/AS*/topology.json; do
+        jq -r '
+            .border_routers | to_entries[] |
+            .key as $br |
+            .value.interfaces | to_entries[] |
+            [$br, .key,
+             .value.underlay.local,
+             .value.underlay.remote,
+             .value.isd_as,
+             .value.link_to] | @tsv
+        ' "$topo"
+    done
+}
+
+# Return the local underlay address for <br> interface <ifid>.
+get_local_addr() {
+    local br="$1" ifid="$2"
+    for topo in "$GEN_DIR"/AS*/topology.json; do
+        local result
+        result=$(jq -r --arg br "$br" --arg ifid "$ifid" \
+            '.border_routers[$br].interfaces[$ifid].underlay.local // empty' \
+            "$topo")
+        if [[ -n "$result" ]]; then echo "$result"; return; fi
+    done
+    die "Interface $ifid not found for BR $br"
+}
+
+# ── commands ───────────────────────────────────────────────────────────────────
+
+cmd_links() {
+    printf "%-30s  %-5s  %-32s  %-32s  %-20s  %s\n" \
+        "BR" "IFID" "LOCAL" "REMOTE" "PEER_AS" "LINK_TYPE"
+    printf "%-30s  %-5s  %-32s  %-32s  %-20s  %s\n" \
+        "$(printf '%0.s-' {1..30})" "-----" \
+        "$(printf '%0.s-' {1..32})" "$(printf '%0.s-' {1..32})" \
+        "$(printf '%0.s-' {1..20})" "--------"
+    list_all_interfaces \
+        | sort -k1,1 -k2,2n \
+        | while IFS=$'\t' read -r br ifid local remote peer_as link_to; do
+            printf "%-30s  %-5s  %-32s  %-32s  %-20s  %s\n" \
+                "$br" "$ifid" "$local" "$remote" "$peer_as" "$link_to"
+        done
+}
+
+cmd_set() {
+    require_root
+    [[ $# -ge 3 ]] || { usage; exit 1; }
+    local br="$1" ifid="$2"; shift 2
+
+    # Parse netem parameters
+    local netem_args=()
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            delay)   netem_args+=("delay" "${2}ms");       shift 2 ;;
+            loss)    netem_args+=("loss" "${2}%");         shift 2 ;;
+            rate)    netem_args+=("rate" "${2}kbit");      shift 2 ;;
+            dup|duplicate) netem_args+=("duplicate" "${2}%"); shift 2 ;;
+            corrupt) netem_args+=("corrupt" "${2}%");     shift 2 ;;
+            reorder) netem_args+=("reorder" "${2}%");     shift 2 ;;
+            *) die "Unknown parameter: $1" ;;
+        esac
+    done
+    [[ ${#netem_args[@]} -gt 0 ]] || die "No conditions specified."
+
+    local addr ip container pid iface
+    addr=$(get_local_addr "$br" "$ifid")
+    ip=$(normalize_ip "$addr")
+
+    container=$(get_container "$br")
+    [[ -n "$container" ]] || die "Container for $br not found. Is SCION running?"
+
+    pid=$(get_pid "$container")
+    [[ "$pid" -gt 0 ]] 2>/dev/null || die "Container $container is not running."
+
+    iface=$(find_iface_by_ip "$pid" "$ip")
+    [[ -n "$iface" ]] || die "No interface with IP $ip found in $container."
+
+    echo "→ $container : $iface  (BR $br ifid $ifid, local $addr)"
+    echo "  tc netem ${netem_args[*]}"
+
+    nsenter -t "$pid" -n tc qdisc replace dev "$iface" root netem "${netem_args[@]}"
+    echo "  Done."
+}
+
+cmd_clear() {
+    require_root
+    [[ $# -eq 2 ]] || { usage; exit 1; }
+    local br="$1" ifid="$2"
+
+    local addr ip container pid iface
+    addr=$(get_local_addr "$br" "$ifid")
+    ip=$(normalize_ip "$addr")
+
+    container=$(get_container "$br")
+    [[ -n "$container" ]] || die "Container for $br not found."
+
+    pid=$(get_pid "$container")
+    iface=$(find_iface_by_ip "$pid" "$ip")
+    [[ -n "$iface" ]] || die "No interface with IP $ip found in $container."
+
+    if nsenter -t "$pid" -n tc qdisc del dev "$iface" root 2>/dev/null; then
+        echo "Cleared $br ifid $ifid ($iface in $container)"
+    else
+        echo "Nothing to clear on $br ifid $ifid"
+    fi
+}
+
+cmd_clear_all() {
+    require_root
+    list_all_interfaces \
+        | while IFS=$'\t' read -r br ifid local _ _ _; do
+            local container pid iface ip
+            container=$(get_container "$br") || continue
+            [[ -n "$container" ]] || continue
+            pid=$(get_pid "$container") || continue
+            ip=$(normalize_ip "$local")
+            iface=$(find_iface_by_ip "$pid" "$ip") || continue
+            [[ -n "$iface" ]] || continue
+            if nsenter -t "$pid" -n tc qdisc del dev "$iface" root 2>/dev/null; then
+                echo "Cleared $br ifid $ifid ($iface)"
+            fi
+        done
+}
+
+cmd_status() {
+    local found=0
+    list_all_interfaces \
+        | sort -k1,1 -k2,2n \
+        | while IFS=$'\t' read -r br ifid local _ peer_as _; do
+            local container pid iface ip
+            container=$(get_container "$br" 2>/dev/null) || continue
+            [[ -n "$container" ]] || continue
+            pid=$(get_pid "$container" 2>/dev/null) || continue
+            [[ "$pid" -gt 0 ]] 2>/dev/null || continue
+            ip=$(normalize_ip "$local")
+            iface=$(find_iface_by_ip "$pid" "$ip" 2>/dev/null) || continue
+            [[ -n "$iface" ]] || continue
+
+            local qdisc
+            qdisc=$(nsenter -t "$pid" -n tc qdisc show dev "$iface" 2>/dev/null \
+                | grep -v 'noqueue\|pfifo_fast\|fq_codel\|mq' || true)
+            if [[ -n "$qdisc" ]]; then
+                printf "%-30s  ifid %-5s  → %-20s  %s: %s\n" \
+                    "$br" "$ifid" "$peer_as" "$iface" "$qdisc"
+                found=1
+            fi
+        done
+    [[ $found -eq 1 ]] || echo "No active network conditions."
+}
+
+# ── dispatch ───────────────────────────────────────────────────────────────────
+
+usage() {
+    cat <<EOF
+Usage:
+  $0 links                                         List all BR inter-AS interfaces
+  $0 set   <br> <ifid> [delay <ms>] [loss <%>]    Set link conditions
+                       [rate <kbps>] [dup <%>]
+                       [corrupt <%>] [reorder <%>]
+  $0 clear <br> <ifid>                             Clear conditions on one link
+  $0 clear-all                                     Clear all conditions
+  $0 status                                        Show active conditions
+
+Examples:
+  $0 links
+  sudo $0 set   br1-ff00_0_110-1 1 delay 50 loss 1
+  sudo $0 set   br1-ff00_0_110-1 1 delay 100 rate 10000
+  sudo $0 clear br1-ff00_0_110-1 1
+  sudo $0 status
+EOF
+}
+
+case "${1:-}" in
+    links)     cmd_links ;;
+    set)       shift; cmd_set "$@" ;;
+    clear-all) cmd_clear_all ;;
+    clear)     shift; cmd_clear "$@" ;;
+    status)    cmd_status ;;
+    *)         usage; exit 1 ;;
+esac

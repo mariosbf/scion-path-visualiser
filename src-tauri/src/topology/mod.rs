@@ -24,6 +24,16 @@ impl specta::Type for IsdAsnDef {
 
 // ── Tauri-facing types ─────────────────────────────────────────────────────────
 
+#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, specta::Type)]
+pub struct NetCondParams {
+    pub delay_ms: Option<u32>,
+    pub loss_percent: Option<f32>,
+    pub rate_kbps: Option<u32>,
+    pub duplicate_percent: Option<f32>,
+    pub corrupt_percent: Option<f32>,
+    pub reorder_percent: Option<f32>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 pub struct Topology {
     pub ases: HashMap<IsdAsnDef, AsInfo>,
@@ -62,6 +72,7 @@ pub struct BorderRouterInterfaceInfo {
     pub mtu: Option<u32>,
     pub underlay_local: std::net::SocketAddr,
     pub underlay_remote: std::net::SocketAddr,
+    pub net_cond: Option<NetCondParams>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
@@ -148,6 +159,7 @@ impl RawAsTopology {
                                 mtu: iface.mtu,
                                 underlay_local: iface.underlay.local,
                                 underlay_remote: iface.underlay.remote,
+                                net_cond: None,
                             },
                         )
                     })

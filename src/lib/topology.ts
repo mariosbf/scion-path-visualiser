@@ -12,7 +12,7 @@ export interface AsNodeData extends Record<string, unknown> {
   core: boolean;
 }
 
-export interface RouterNodeData extends Record<string, unknown> {
+export interface InterfaceNodeData extends Record<string, unknown> {
   label: string;
   asId: string;
   interfaceId: number;
@@ -27,7 +27,7 @@ export interface EdgeData extends Record<string, unknown> {
 export type TopologyNode =
   | Node<IsdNodeData, "isd">
   | Node<AsNodeData, "as">
-  | Node<RouterNodeData, "router">;
+  | Node<InterfaceNodeData, "interface">;
 
 export type TopologyEdge = Edge<EdgeData>;
 
@@ -68,17 +68,17 @@ export function buildGraph(topology: Topology): {
     });
   }
 
-  // Router nodes + edges
-  const seenRouters = new Set<string>();
+  // Interface nodes + edges
+  const seenInterfaces = new Set<string>();
 
   for (const link of topology.links) {
     for (const ep of [link.a, link.b]) {
-      const routerId = `router-${ep.as_id}-${ep.router_name}-${ep.interface_id}`;
-      if (!seenRouters.has(routerId)) {
-        seenRouters.add(routerId);
+      const interfaceNodeId = `router-${ep.as_id}-${ep.router_name}-${ep.interface_id}`;
+      if (!seenInterfaces.has(interfaceNodeId)) {
+        seenInterfaces.add(interfaceNodeId);
         nodes.push({
-          id: routerId,
-          type: "router",
+          id: interfaceNodeId,
+          type: "interface",
           data: {
             label: String(ep.interface_id),
             asId: ep.as_id,

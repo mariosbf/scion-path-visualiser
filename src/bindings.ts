@@ -76,6 +76,30 @@ async getPaths(srcAs: string, dstAs: string) : Promise<Result<ScionPath[], strin
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
 }
+},
+async netcondSet(br: string, ifid: number, params: NetCondParams) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("netcond_set", { br, ifid, params }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async netcondClear(br: string, ifid: number) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("netcond_clear", { br, ifid }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async netcondClearAll() : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("netcond_clear_all") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
 }
 }
 
@@ -92,7 +116,7 @@ async getPaths(srcAs: string, dstAs: string) : Promise<Result<ScionPath[], strin
 export type AppConfig = { scion_folder: string; topo_file: string; run_topology: boolean; running_mode: RunningMode }
 export type AsInfo = { core: boolean; mtu: number | null; control_service: ControlServiceInfo; discovery_service: DiscoveryServiceInfo; hummingbird: HbirdInfo | null; daemon: ScionDaemonInfo; endhost_api_bridge: EndhostApiBridgeInfo; border_routers: BorderRouterInfo[] }
 export type BorderRouterInfo = { name: string; internal_addr: string; interfaces: { [key in number]: BorderRouterInterfaceInfo }; status: ServiceStatusInfo | null }
-export type BorderRouterInterfaceInfo = { isd_as: string; link_to: string; mtu: number | null; underlay_local: string; underlay_remote: string }
+export type BorderRouterInterfaceInfo = { isd_as: string; link_to: string; mtu: number | null; underlay_local: string; underlay_remote: string; net_cond: NetCondParams | null }
 export type ControlServiceInfo = { addr: string; name: string; status: ServiceStatusInfo | null }
 export type DiscoveryServiceInfo = { addr: string; name: string }
 export type EndhostApiBridgeInfo = { addr: string }
@@ -100,6 +124,7 @@ export type HbirdInfo = { id: string; reservation_duration: string; min_bandwidt
 export type Link = { a: LinkEndpoint; b: LinkEndpoint; link_type: LinkType }
 export type LinkEndpoint = { as_id: string; router_name: string; interface_id: number }
 export type LinkType = "Core" | "Child" | "Peer"
+export type NetCondParams = { delay_ms: number | null; loss_percent: number | null; rate_kbps: number | null; duplicate_percent: number | null; corrupt_percent: number | null; reorder_percent: number | null }
 export type RunningMode = "Docker" | "Supervisord"
 export type ScionDaemonInfo = { id: string; address: string; api_addr: string; status: ServiceStatusInfo | null }
 export type ScionPath = { interfaces: ScionPathInterface[]; expiry: string; mtu: number }

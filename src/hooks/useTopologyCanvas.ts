@@ -1,17 +1,17 @@
 import { useMemo, useState } from "react";
 import type { AsInfo, BorderRouterInfo, Link, Topology } from "../bindings";
-import type { IsdNodeData, AsNodeData, RouterNodeData } from "../lib/topology";
+import type { IsdNodeData, AsNodeData, InterfaceNodeData } from "../lib/topology";
 
-export type TopologyItem<Isd, As, Router, EdgeLink> =
+export type TopologyItem<Isd, As, Interface, EdgeLink> =
   | { type: "isd"; data: Isd }
   | { type: "as"; data: As }
-  | { type: "border-router"; data: Router }
+  | { type: "border-router-interface"; data: Interface }
   | { type: "link"; data: EdgeLink };
 
 export type TopologyCanvasItem = TopologyItem<
   IsdNodeData,
   AsNodeData,
-  RouterNodeData,
+  InterfaceNodeData,
   Link
 >;
 
@@ -19,7 +19,7 @@ export type SelectedInfo =
   | { type: "isd"; data: { isd: string; ases: [string, AsInfo][] } }
   | { type: "as"; data: AsInfo; asId: string }
   | {
-    type: "border-router";
+    type: "border-router-interface";
     data: BorderRouterInfo;
     asId: string;
     interfaceId: number;
@@ -47,7 +47,7 @@ export function resolveSelectedInfo(
     return { type: "as", data: info, asId };
   }
 
-  if (selected.type === "border-router") {
+  if (selected.type === "border-router-interface") {
     const { asId, interfaceId } = selected.data;
     const asInfo = topology.ases[asId];
     if (!asInfo) return undefined;
@@ -55,7 +55,7 @@ export function resolveSelectedInfo(
       (r) => interfaceId in r.interfaces,
     );
     if (!router) return undefined;
-    return { type: "border-router", data: router, asId, interfaceId };
+    return { type: "border-router-interface", data: router, asId, interfaceId };
   }
 
   if (selected.type === "link") {

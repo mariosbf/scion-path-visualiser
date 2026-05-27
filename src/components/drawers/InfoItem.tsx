@@ -3,15 +3,16 @@ import CopyActionIcon from "../util/CopyActionIcon";
 
 export function InfoItem({
   label,
+  noCopy,
   ...props
-}: { label: string } & (
+}: { label: string; noCopy?: boolean | undefined } & (
   | { value: string | number; values?: never }
   | { value?: never; values: (string | number)[] }
 )) {
   const item = (v: string | number) => (
     <Group justify="space-between" key={v}>
       <Text>{v}</Text>
-      <CopyActionIcon value={v} />
+      {(noCopy ?? false) ? null : <CopyActionIcon value={v} />}
     </Group>
   );
 

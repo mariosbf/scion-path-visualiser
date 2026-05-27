@@ -50,14 +50,14 @@ describe("buildGraph", () => {
     expect(asNodes.every((n) => n.parentId === "isd-1")).toBe(true);
   });
 
-  it("creates one router node per unique (as_id, router_name, interface_id) triple", () => {
+  it("creates one interface node per unique (as_id, router_name, interface_id) triple", () => {
     const { nodes } = buildGraph(tinyTopology);
-    const routerNodes = nodes.filter((n) => n.type === "router");
-    expect(routerNodes).toHaveLength(2);
-    expect(routerNodes[0].parentId).toMatch(/^as-/);
+    const interfaceNodes = nodes.filter((n) => n.type === "interface");
+    expect(interfaceNodes).toHaveLength(2);
+    expect(interfaceNodes[0].parentId).toMatch(/^as-/);
   });
 
-  it("creates edges connecting router nodes with link type", () => {
+  it("creates edges connecting interface nodes with link type", () => {
     const { edges } = buildGraph(tinyTopology);
     expect(edges).toHaveLength(1);
     expect(edges[0].source).toBe("router-1-ff00:0:110-br1-ff00_0_110-1-1001");
@@ -65,7 +65,7 @@ describe("buildGraph", () => {
     expect(edges[0].data?.linkType).toBe("Child");
   });
 
-  it("deduplicates router nodes appearing in multiple links", () => {
+  it("deduplicates interface nodes appearing in multiple links", () => {
     const multiLink: Topology = {
       ases: {
         "1-ff00:0:110": stubAs(true),
@@ -86,9 +86,9 @@ describe("buildGraph", () => {
       ],
     };
     const { nodes } = buildGraph(multiLink);
-    const routerIds = nodes.filter((n) => n.type === "router").map((n) => n.id);
-    expect(new Set(routerIds).size).toBe(routerIds.length); // all unique
-    expect(routerIds).toHaveLength(4); // 4 distinct router+interface pairs
+    const interfaceNodeIds = nodes.filter((n) => n.type === "interface").map((n) => n.id);
+    expect(new Set(interfaceNodeIds).size).toBe(interfaceNodeIds.length); // all unique
+    expect(interfaceNodeIds).toHaveLength(4); // 4 distinct interface nodes
   });
 
   it("returns empty nodes and edges for an empty topology", () => {

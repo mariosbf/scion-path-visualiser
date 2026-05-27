@@ -1,21 +1,21 @@
 import { describe, expect, test } from 'vitest';
 import { mapPathToEdges } from './paths';
-import type { TopologyNode, TopologyEdge, RouterNodeData } from './topology';
+import type { TopologyNode, TopologyEdge, InterfaceNodeData } from './topology';
 import type { ScionPath } from '../bindings';
 
-function makeRouterNode(
+function makeInterfaceNode(
   id: string,
   asId: string,
   interfaceId: number,
 ): TopologyNode {
   return {
     id,
-    type: 'router',
+    type: 'interface',
     data: {
       label: String(interfaceId),
       asId,
       interfaceId,
-    } satisfies RouterNodeData,
+    } satisfies InterfaceNodeData,
     position: { x: 0, y: 0 },
   } as TopologyNode;
 }
@@ -37,8 +37,8 @@ function makePath(interfaces: { isd_as: string; interface_id: number }[]): Scion
 describe('mapPathToEdges', () => {
   test('maps single-hop path to edge in forward direction', () => {
     const nodes = [
-      makeRouterNode('r-1-110-br1-1', '1-ff00:0:110', 1),
-      makeRouterNode('r-1-111-br1-2', '1-ff00:0:111', 2),
+      makeInterfaceNode('r-1-110-br1-1', '1-ff00:0:110', 1),
+      makeInterfaceNode('r-1-111-br1-2', '1-ff00:0:111', 2),
     ];
     const edges = [makeEdge('e1', 'r-1-110-br1-1', 'r-1-111-br1-2')];
     const path = makePath([
@@ -54,8 +54,8 @@ describe('mapPathToEdges', () => {
 
   test('detects reverse edge direction', () => {
     const nodes = [
-      makeRouterNode('r-1-110-br1-1', '1-ff00:0:110', 1),
-      makeRouterNode('r-1-111-br1-2', '1-ff00:0:111', 2),
+      makeInterfaceNode('r-1-110-br1-1', '1-ff00:0:110', 1),
+      makeInterfaceNode('r-1-111-br1-2', '1-ff00:0:111', 2),
     ];
     // Edge in graph goes 111→110, but path goes 110→111
     const edges = [makeEdge('e1', 'r-1-111-br1-2', 'r-1-110-br1-1')];
@@ -72,10 +72,10 @@ describe('mapPathToEdges', () => {
 
   test('maps multi-hop path to multiple edges', () => {
     const nodes = [
-      makeRouterNode('r-a', '1-ff00:0:110', 1),
-      makeRouterNode('r-b', '1-ff00:0:120', 2),
-      makeRouterNode('r-c', '1-ff00:0:120', 3),
-      makeRouterNode('r-d', '1-ff00:0:130', 4),
+      makeInterfaceNode('r-a', '1-ff00:0:110', 1),
+      makeInterfaceNode('r-b', '1-ff00:0:120', 2),
+      makeInterfaceNode('r-c', '1-ff00:0:120', 3),
+      makeInterfaceNode('r-d', '1-ff00:0:130', 4),
     ];
     const edges = [
       makeEdge('e1', 'r-a', 'r-b'),
@@ -96,7 +96,7 @@ describe('mapPathToEdges', () => {
   });
 
   test('skips interfaces not found in topology', () => {
-    const nodes = [makeRouterNode('r-a', '1-ff00:0:110', 1)];
+    const nodes = [makeInterfaceNode('r-a', '1-ff00:0:110', 1)];
     const edges: TopologyEdge[] = [];
     const path = makePath([
       { isd_as: '1-ff00:0:110', interface_id: 1 },

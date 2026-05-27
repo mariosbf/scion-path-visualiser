@@ -3,6 +3,7 @@ import { useDisclosure } from "@mantine/hooks";
 import {
   IconArrowLoopLeft,
   IconTopologyComplex,
+  IconTrafficCone,
   TablerIcon,
 } from "@tabler/icons-react";
 import { createFileRoute, Outlet } from "@tanstack/react-router";
@@ -23,6 +24,7 @@ const NAV_ITEMS: Array<{
 }> = [
     { icon: IconTopologyComplex, label: "Topology", link: "/app/topology" },
     { icon: IconArrowLoopLeft, label: "Paths", link: "/app/paths" },
+    { icon: IconTrafficCone, label: "Traffic Control", link: "/app/traffic-control" },
   ];
 
 export function AppLayout() {

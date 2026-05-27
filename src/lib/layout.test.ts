@@ -76,13 +76,13 @@ describe("layoutGraph", () => {
     expect(isdNodes[0].position.x).not.toBe(isdNodes[1].position.x);
   });
 
-  it("assigns positions to router nodes", () => {
+  it("assigns positions to interface nodes", () => {
     const { nodes, edges } = buildGraph(twoAsTopology);
     const laid = layoutGraph(nodes, edges);
-    const routerNodes = laid.filter((n) => n.type === "router");
-    for (const rn of routerNodes) {
-      expect(rn.position.x).toBeGreaterThan(0);
-      expect(rn.position.y).toBeGreaterThan(0);
+    const interfaceNodes = laid.filter((n) => n.type === "interface");
+    for (const iNode of interfaceNodes) {
+      expect(iNode.position.x).toBeGreaterThan(0);
+      expect(iNode.position.y).toBeGreaterThan(0);
     }
   });
 });

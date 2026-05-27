@@ -1,7 +1,7 @@
 import { Anchor, Badge, Divider, Drawer, Stack, Text } from "@mantine/core";
 import type { ComponentPropsWithoutRef } from "react";
 import type { AsInfo } from "../../bindings";
-import type { RouterSelection } from "./RouterDetailDrawer";
+import type { InterfaceSelection } from "./InterfaceDetailDrawer";
 import { InfoItem } from "./InfoItem";
 
 export type ServiceDrawerId =
@@ -19,13 +19,13 @@ export interface AsSelection {
 interface Props extends ComponentPropsWithoutRef<typeof Drawer> {
   selection: AsSelection | null;
   onViewService: (id: ServiceDrawerId) => void;
-  onViewRouter: (r: RouterSelection) => void;
+  onViewInterface: (r: InterfaceSelection) => void;
 }
 
 export function AsDetailDrawer({
   selection,
   onViewService,
-  onViewRouter,
+  onViewInterface,
   ...drawerProps
 }: Props) {
   return (
@@ -41,7 +41,7 @@ export function AsDetailDrawer({
           asId={selection.asId}
           info={selection.info}
           onViewService={onViewService}
-          onViewRouter={onViewRouter}
+          onViewInterface={onViewInterface}
         />
       )}
     </Drawer>
@@ -52,12 +52,12 @@ export function AsDetails({
   asId,
   info,
   onViewService,
-  onViewRouter,
+  onViewInterface,
 }: {
   asId: string;
   info: AsInfo;
   onViewService: (id: ServiceDrawerId) => void;
-  onViewRouter: (r: RouterSelection) => void;
+  onViewInterface: (r: InterfaceSelection) => void;
 }) {
   return (
     <Stack gap="sm">
@@ -97,7 +97,7 @@ export function AsDetails({
       {info.border_routers.length > 0 && (
         <>
           <Stack gap={4}>
-            <Text c="dimmed">Routers</Text>
+            <Text c="dimmed">Border Router Interfaces</Text>
             <Stack gap={4}>
               {info.border_routers.flatMap((r) =>
                 Object.keys(r.interfaces).map((ifId) => {
@@ -107,7 +107,7 @@ export function AsDetails({
                       href="#"
                       key={`${r.name}-${interfaceId}`}
                       onClick={() =>
-                        onViewRouter({ router: r, asId, interfaceId })
+                        onViewInterface({ router: r, asId, interfaceId })
                       }
                     >
                       {r.name} (if: {interfaceId})

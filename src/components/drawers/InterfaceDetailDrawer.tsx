@@ -1,31 +1,31 @@
 import { Button, Drawer, Stack } from "@mantine/core";
-import { IconFileText } from "@tabler/icons-react";
 import type { ComponentPropsWithoutRef } from "react";
+import { IconFileText } from "@tabler/icons-react";
 import { useNavigate } from "@tanstack/react-router";
 import type { BorderRouterInfo } from "../../bindings";
 import { InfoItem } from "./InfoItem";
 
-export interface RouterSelection {
+export interface InterfaceSelection {
   router: BorderRouterInfo;
   asId: string;
   interfaceId: number;
 }
 
 interface Props extends ComponentPropsWithoutRef<typeof Drawer> {
-  selection: RouterSelection | null;
+  selection: InterfaceSelection | null;
 }
 
-export function RouterDetailDrawer({ selection, ...drawerProps }: Props) {
+export function InterfaceDetailDrawer({ selection, ...drawerProps }: Props) {
   return (
     <Drawer
       {...drawerProps}
       position="right"
       size="md"
-      title={selection ? `Router — ${selection.router.name}` : "Router"}
+      title={selection ? `Interface ${selection.interfaceId} — ${selection.router.name}` : "Interface"}
       styles={{ body: { paddingTop: 8 } }}
     >
       {selection && (
-        <RouterDetails
+        <InterfaceDetails
           router={selection.router}
           asId={selection.asId}
           interfaceId={selection.interfaceId}
@@ -35,7 +35,7 @@ export function RouterDetailDrawer({ selection, ...drawerProps }: Props) {
   );
 }
 
-export function RouterDetails({
+export function InterfaceDetails({
   router,
   asId,
   interfaceId,

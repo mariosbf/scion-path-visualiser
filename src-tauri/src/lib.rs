@@ -1,4 +1,5 @@
 pub mod ehapi_bridge;
+pub mod netcond;
 pub mod paths;
 pub mod status;
 pub mod topology;
@@ -488,6 +489,9 @@ pub fn run() {
         stop_log_stream,
         ehapi_bridge::mint_token,
         paths::get_paths,
+        netcond::netcond_set,
+        netcond::netcond_clear,
+        netcond::netcond_clear_all,
     ]);
 
     #[cfg(debug_assertions)]
@@ -559,6 +563,9 @@ mod tests {
                 super::stop_log_stream,
                 super::ehapi_bridge::mint_token,
                 super::paths::get_paths,
+                super::netcond::netcond_set,
+                super::netcond::netcond_clear,
+                super::netcond::netcond_clear_all,
             ])
             .export(
                 specta_typescript::Typescript::default().header("// @ts-nocheck"),
