@@ -71,6 +71,7 @@ function TrafficControlContent({
   const [dup, setDup] = useState<number>();
   const [corrupt, setCorrupt] = useState<number>();
   const [reorder, setReorder] = useState<number>();
+  const [mtu, setMtu] = useState<number | string>("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -82,6 +83,7 @@ function TrafficControlContent({
     setDup(currentNetCond?.duplicate_percent ?? undefined);
     setCorrupt(currentNetCond?.corrupt_percent ?? undefined);
     setReorder(currentNetCond?.reorder_percent ?? undefined);
+    setMtu(currentNetCond?.mtu ?? "");
     setError(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [router.name, interfaceId]);
@@ -94,6 +96,7 @@ function TrafficControlContent({
       duplicate_percent: dup ?? null,
       corrupt_percent: corrupt ?? null,
       reorder_percent: reorder ?? null,
+      mtu: typeof mtu === "number" ? mtu : null,
     };
 
     if (Object.values(params).every((v) => v === null)) {
@@ -126,6 +129,7 @@ function TrafficControlContent({
       setDup(undefined);
       setCorrupt(undefined);
       setReorder(undefined);
+      setMtu("");
     }
   };
 
@@ -183,6 +187,16 @@ function TrafficControlContent({
       <Divider />
 
       {slider("Reorder (%)", reorder, setReorder)}
+      <Divider />
+
+      <NumberInput
+        label="MTU (bytes)"
+        placeholder="e.g. 1300"
+        min={1280}
+        max={9000}
+        value={mtu}
+        onChange={setMtu}
+      />
       <Divider />
 
       {error && (

@@ -65,6 +65,9 @@ pub async fn netcond_set(
     if let Some(v) = params.reorder_percent {
         args.extend(["reorder".to_string(), v.to_string()]);
     }
+    if let Some(v) = params.mtu {
+        args.extend(["mtu".to_string(), v.to_string()]);
+    }
 
     if args.len() <= 3 {
         return Err("At least one condition must be specified".to_string());

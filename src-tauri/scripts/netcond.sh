@@ -7,7 +7,7 @@
 #
 # Usage:
 #   ./netcond.sh links
-#   ./netcond.sh set   <br-name> <ifid> [delay <ms>] [loss <%>] [rate <kbps>] [dup <%>] [corrupt <%>] [reorder <%>]
+#   ./netcond.sh set   <br-name> <ifid> [delay <ms>] [loss <%>] [rate <kbps>] [dup <%>] [corrupt <%>] [reorder <%>] [mtu <bytes>]
 #   ./netcond.sh clear <br-name> <ifid>
 #   ./netcond.sh clear-all
 #   ./netcond.sh status
@@ -57,12 +57,13 @@ get_pid() {
 }
 
 # Find the interface name inside a network namespace that holds a given IP.
+# Use `ip addr show to <addr>` so the kernel handles IPv6 canonicalization —
+# avoids awk string-match failures when :: vs 0:0:0 forms differ.
 find_iface_by_ip() {
     local pid="$1"
     local ip="$2"
-    # ip -o addr: "2: eth0    inet 172.20.0.2/29 ..."
-    nsenter -t "$pid" -n ip -o addr show \
-        | awk -v ip="$ip" '$4 ~ ("^" ip "/") { print $2; exit }'
+    nsenter -t "$pid" -n ip -o addr show to "$ip" \
+        | awk 'NR==1 { print $2; exit }'
 }
 
 # Parse all topology.json files; print TSV: br ifid local_addr remote_addr peer_isd_as link_to
@@ -116,8 +117,9 @@ cmd_set() {
     [[ $# -ge 3 ]] || { usage; exit 1; }
     local br="$1" ifid="$2"; shift 2
 
-    # Parse netem parameters
+    # Parse netem parameters and MTU
     local netem_args=()
+    local mtu_val=""
     while [[ $# -gt 0 ]]; do
         case "$1" in
             delay)   netem_args+=("delay" "${2}ms");       shift 2 ;;
@@ -126,10 +128,13 @@ cmd_set() {
             dup|duplicate) netem_args+=("duplicate" "${2}%"); shift 2 ;;
             corrupt) netem_args+=("corrupt" "${2}%");     shift 2 ;;
             reorder) netem_args+=("reorder" "${2}%");     shift 2 ;;
+            mtu)     mtu_val="$2"
+                     [[ "$mtu_val" -ge 1280 ]] || die "MTU must be >= 1280 (IPv6 minimum; lower values remove IPv6 addresses from the interface)"
+                     shift 2 ;;
             *) die "Unknown parameter: $1" ;;
         esac
     done
-    [[ ${#netem_args[@]} -gt 0 ]] || die "No conditions specified."
+    [[ ${#netem_args[@]} -gt 0 || -n "$mtu_val" ]] || die "No conditions specified."
 
     local addr ip container pid iface
     addr=$(get_local_addr "$br" "$ifid")
@@ -145,9 +150,17 @@ cmd_set() {
     [[ -n "$iface" ]] || die "No interface with IP $ip found in $container."
 
     echo "→ $container : $iface  (BR $br ifid $ifid, local $addr)"
-    echo "  tc netem ${netem_args[*]}"
 
-    nsenter -t "$pid" -n tc qdisc replace dev "$iface" root netem "${netem_args[@]}"
+    if [[ ${#netem_args[@]} -gt 0 ]]; then
+        echo "  tc netem ${netem_args[*]}"
+        nsenter -t "$pid" -n tc qdisc replace dev "$iface" root netem "${netem_args[@]}"
+    fi
+
+    if [[ -n "$mtu_val" ]]; then
+        echo "  ip link set dev $iface mtu $mtu_val"
+        nsenter -t "$pid" -n ip link set dev "$iface" mtu "$mtu_val"
+    fi
+
     echo "  Done."
 }
 
@@ -168,10 +181,13 @@ cmd_clear() {
     [[ -n "$iface" ]] || die "No interface with IP $ip found in $container."
 
     if nsenter -t "$pid" -n tc qdisc del dev "$iface" root 2>/dev/null; then
-        echo "Cleared $br ifid $ifid ($iface in $container)"
+        echo "Cleared tc on $br ifid $ifid ($iface in $container)"
     else
         echo "Nothing to clear on $br ifid $ifid"
     fi
+
+    nsenter -t "$pid" -n ip link set dev "$iface" mtu 1500
+    echo "Reset MTU to 1500 on $iface in $container"
 }
 
 cmd_clear_all() {
@@ -186,8 +202,9 @@ cmd_clear_all() {
             iface=$(find_iface_by_ip "$pid" "$ip") || continue
             [[ -n "$iface" ]] || continue
             if nsenter -t "$pid" -n tc qdisc del dev "$iface" root 2>/dev/null; then
-                echo "Cleared $br ifid $ifid ($iface)"
+                echo "Cleared tc on $br ifid $ifid ($iface)"
             fi
+            nsenter -t "$pid" -n ip link set dev "$iface" mtu 1500 2>/dev/null || true
         done
 }
 
@@ -226,6 +243,7 @@ Usage:
   $0 set   <br> <ifid> [delay <ms>] [loss <%>]    Set link conditions
                        [rate <kbps>] [dup <%>]
                        [corrupt <%>] [reorder <%>]
+                       [mtu <bytes>]
   $0 clear <br> <ifid>                             Clear conditions on one link
   $0 clear-all                                     Clear all conditions
   $0 status                                        Show active conditions

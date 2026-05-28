@@ -32,6 +32,7 @@ pub struct NetCondParams {
     pub duplicate_percent: Option<f32>,
     pub corrupt_percent: Option<f32>,
     pub reorder_percent: Option<f32>,
+    pub mtu: Option<u32>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
