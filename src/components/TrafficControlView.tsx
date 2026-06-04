@@ -1,10 +1,13 @@
 import {
+  Button,
   Drawer,
   DrawerStack,
+  Notification,
   Stack,
   useDrawersStack,
 } from "@mantine/core";
 import { useEffect, useState } from "react";
+import { commands } from "../bindings";
 import type { Link, Topology } from "../bindings";
 import useTopologyCanvas from "../hooks/useTopologyCanvas";
 import { TopologyCanvas } from "./TopologyCanvas";
@@ -25,6 +28,16 @@ export function TrafficControlView({ topology }: Props) {
 
   const [activeInterface, setActiveInterface] =
     useState<InterfaceSelection | null>(null);
+  const [clearAllLoading, setClearAllLoading] = useState(false);
+  const [clearAllError, setClearAllError] = useState<string | null>(null);
+
+  async function handleClearAll() {
+    setClearAllLoading(true);
+    setClearAllError(null);
+    const result = await commands.netcondClearAll();
+    setClearAllLoading(false);
+    if (result.status === "error") setClearAllError(result.error);
+  }
 
   useEffect(() => {
     if (!selected) {
@@ -77,6 +90,32 @@ export function TrafficControlView({ topology }: Props) {
           setSelected(undefined);
         }}
       />
+
+      <Button
+        color="red"
+        loading={clearAllLoading}
+        onClick={handleClearAll}
+        style={{ position: "fixed", bottom: 24, right: 24, zIndex: 200 }}
+      >
+        Clear all
+      </Button>
+
+      {clearAllError && (
+        <Notification
+          color="red"
+          title="Clear all failed"
+          onClose={() => setClearAllError(null)}
+          style={{
+            position: "fixed",
+            bottom: 80,
+            right: 24,
+            zIndex: 200,
+            maxWidth: 320,
+          }}
+        >
+          {clearAllError}
+        </Notification>
+      )}
     </DrawerStack>
   );
 }
