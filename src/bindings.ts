@@ -113,7 +113,7 @@ async netcondClearAll() : Promise<Result<null, string>> {
 
 /** user-defined types **/
 
-export type AppConfig = { scion_folder: string; topo_file: string; run_topology: boolean; running_mode: RunningMode }
+export type AppConfig = { scion_folder: string; topo_file: string; run_topology: boolean; running_mode: RunningMode; run_grafana: boolean }
 export type AsInfo = { core: boolean; mtu: number | null; control_service: ControlServiceInfo; discovery_service: DiscoveryServiceInfo; hummingbird: HbirdInfo | null; daemon: ScionDaemonInfo; endhost_api_bridge: EndhostApiBridgeInfo; border_routers: BorderRouterInfo[] }
 export type BorderRouterInfo = { name: string; internal_addr: string; interfaces: { [key in number]: BorderRouterInterfaceInfo }; status: ServiceStatusInfo | null }
 export type BorderRouterInterfaceInfo = { isd_as: string; link_to: string; mtu: number | null; underlay_local: string; underlay_remote: string; net_cond: NetCondParams | null }

@@ -94,6 +94,7 @@ export function SetupWizard() {
     topo_file: null,
     run_topology: true,
     running_mode: "Supervisord",
+    run_grafana: true,
   });
 
   const nextStep = () => setActive((a) => a + 1);
@@ -104,6 +105,7 @@ export function SetupWizard() {
       topo_file: null,
       run_topology: true,
       running_mode: "Supervisord",
+      run_grafana: true,
     });
     setActive(0);
   };
@@ -164,6 +166,7 @@ export function SetupWizard() {
                 <ConfigStep
                   runTopology={state.run_topology}
                   runningMode={state.running_mode}
+                  runGrafana={state.run_grafana}
                   onRunTopologyChange={(v) =>
                     setState((s) => ({ ...s, run_topology: v }))
                   }
@@ -172,6 +175,9 @@ export function SetupWizard() {
                       ...s,
                       running_mode: v ?? "Supervisord",
                     }))
+                  }
+                  onRunGrafanaChange={(v) =>
+                    setState((s) => ({ ...s, run_grafana: v }))
                   }
                 />
               )}
@@ -335,13 +341,17 @@ function TopologyStep({
 function ConfigStep({
   runTopology,
   runningMode,
+  runGrafana,
   onRunTopologyChange,
   onRunningModeChange,
+  onRunGrafanaChange,
 }: {
   runTopology: boolean;
   runningMode: RunningMode;
+  runGrafana: boolean;
   onRunTopologyChange: (v: boolean) => void;
   onRunningModeChange: (v: RunningMode | null) => void;
+  onRunGrafanaChange: (v: boolean) => void;
 }) {
   return (
     <Stack gap="md">
@@ -356,6 +366,12 @@ function ConfigStep({
         value={runningMode}
         onChange={onRunningModeChange}
         disabled={!runTopology}
+      />
+      <Switch
+        label="Run Grafana"
+        checked={runGrafana}
+        disabled={!runTopology}
+        onChange={(e) => onRunGrafanaChange(e.currentTarget.checked)}
       />
     </Stack>
   );

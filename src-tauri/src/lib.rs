@@ -1,4 +1,5 @@
 pub mod ehapi_bridge;
+pub mod grafana;
 pub mod netcond;
 pub mod paths;
 pub mod status;
@@ -70,6 +71,7 @@ pub struct AppConfig {
     pub topo_file: String,
     pub run_topology: bool,
     pub running_mode: RunningMode,
+    pub run_grafana: bool,
 }
 
 #[tauri::command]
@@ -110,6 +112,19 @@ async fn setup_scion_network(
         return Err(format!("scion.sh topology exited with status {status}"));
     }
 
+    // Read topology and store in state
+    let gen_dir = scion_folder.join("gen");
+    let topo = load_topology(&gen_dir).map_err(|e| format!("Failed to load topology: {e}"))?;
+
+    let as_ids: Vec<String> = topo.ases.keys().map(|k| k.0.to_string()).collect();
+    if config.run_grafana {
+        app.emit("scion-setup-phase", "Configuring monitoring…").ok();
+        grafana::generate_grafana_config(&gen_dir, &as_ids)
+            .map_err(|e| format!("Failed to generate Grafana config: {e}"))?;
+        grafana::patch_monitoring_dc(&gen_dir)
+            .map_err(|e| format!("Failed to patch monitoring-dc.yml: {e}"))?;
+    }
+
     if config.run_topology {
         // Start SCION topology
         app.emit("scion-setup-phase", "Starting SCION topology…")
@@ -137,11 +152,31 @@ async fn setup_scion_network(
         if !status.success() {
             return Err(format!("scion.sh start exited with status {status}"));
         }
-    }
 
-    // Read topology and store in state
-    let gen_dir = scion_folder.join("gen");
-    let topo = load_topology(&gen_dir).map_err(|e| format!("Failed to load topology: {e}"))?;
+        // Start monitoring stack (Prometheus, Jaeger, Grafana)
+        app.emit("scion-setup-phase", "Starting monitoring stack…").ok();
+
+        let mut child = tokio::process::Command::new("./scion.sh")
+            .args(["start-monitoring"])
+            .current_dir(scion_folder)
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .map_err(|e| format!("Failed to spawn scion.sh start-monitoring: {e}"))?;
+
+        stream_output(&app, &mut child, "scion-setup-output").await?;
+
+        let status = child
+            .wait()
+            .await
+            .map_err(|e| format!("Failed to wait for scion.sh start-monitoring: {e}"))?;
+
+        if !status.success() {
+            return Err(format!(
+                "scion.sh start-monitoring exited with status {status}"
+            ));
+        }
+    }
 
     // Start endhost API bridges (only when running the topology)
     let ehapi_bridges = if config.run_topology {
