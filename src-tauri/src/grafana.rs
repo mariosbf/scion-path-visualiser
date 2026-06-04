@@ -108,6 +108,7 @@ fn make_timeseries_panel(
     title: &str,
     expr: &str,
     legend: &str,
+    unit: &str,
     h: u32,
     w: u32,
     x: u32,
@@ -122,7 +123,7 @@ fn make_timeseries_panel(
         "fieldConfig": {
             "defaults": {
                 "custom": { "lineWidth": 2 },
-                "unit": "pps"
+                "unit": unit
             }
         },
         "targets": [{
@@ -134,12 +135,21 @@ fn make_timeseries_panel(
 }
 
 fn make_overview_dashboard() -> serde_json::Value {
+    let demotion_pct_overview = concat!(
+        "100 * sum by (isd_as) (\n",
+        "  rate(router_humm_demoted_freshness_total[1m])\n",
+        "  + rate(router_humm_demoted_expired_total[1m])\n",
+        "  + rate(router_humm_demoted_tokenbucket_total[1m])\n",
+        ") / sum by (isd_as) (rate(router_humm_flyover_pkts_total[1m]))",
+    );
+
     let panels = vec![
         make_timeseries_panel(
             1,
             "Total demotions per AS (all categories)",
             "sum by (isd_as) (\n  rate(router_humm_demoted_freshness_total[1m])\n  + rate(router_humm_demoted_expired_total[1m])\n  + rate(router_humm_demoted_tokenbucket_total[1m])\n)",
             "{{isd_as}}",
+            "pps",
             8, 24, 0, 0,
         ),
         make_timeseries_panel(
@@ -147,6 +157,7 @@ fn make_overview_dashboard() -> serde_json::Value {
             "Freshness demotions per AS",
             "sum by (isd_as) (rate(router_humm_demoted_freshness_total[1m]))",
             "{{isd_as}}",
+            "pps",
             8, 8, 0, 8,
         ),
         make_timeseries_panel(
@@ -154,6 +165,7 @@ fn make_overview_dashboard() -> serde_json::Value {
             "Expired reservation demotions per AS",
             "sum by (isd_as) (rate(router_humm_demoted_expired_total[1m]))",
             "{{isd_as}}",
+            "pps",
             8, 8, 8, 8,
         ),
         make_timeseries_panel(
@@ -161,7 +173,16 @@ fn make_overview_dashboard() -> serde_json::Value {
             "Token bucket demotions per AS",
             "sum by (isd_as) (rate(router_humm_demoted_tokenbucket_total[1m]))",
             "{{isd_as}}",
+            "pps",
             8, 8, 16, 8,
+        ),
+        make_timeseries_panel(
+            5,
+            "Demotion rate per AS (% of flyover packets)",
+            demotion_pct_overview,
+            "{{isd_as}}",
+            "percent",
+            8, 24, 0, 16,
         ),
     ];
 
@@ -183,12 +204,24 @@ fn make_as_dashboard(isd_as: &str, slug: &str) -> serde_json::Value {
         format!("sum by (interface) (rate({metric}{{isd_as=\"{isd_as}\"}}[1m]))")
     };
 
+    let demotion_pct_expr = format!(
+        concat!(
+            "100 * sum by (interface) (\n",
+            "  rate(router_humm_demoted_freshness_total{{isd_as=\"{0}\"}}[1m])\n",
+            "  + rate(router_humm_demoted_expired_total{{isd_as=\"{0}\"}}[1m])\n",
+            "  + rate(router_humm_demoted_tokenbucket_total{{isd_as=\"{0}\"}}[1m])\n",
+            ") / sum by (interface) (rate(router_humm_flyover_pkts_total{{isd_as=\"{0}\"}}[1m]))",
+        ),
+        isd_as,
+    );
+
     let panels = vec![
         make_timeseries_panel(
             1,
             "Freshness demotions",
             &expr("router_humm_demoted_freshness_total"),
             "interface {{interface}}",
+            "pps",
             8, 24, 0, 0,
         ),
         make_timeseries_panel(
@@ -196,6 +229,7 @@ fn make_as_dashboard(isd_as: &str, slug: &str) -> serde_json::Value {
             "Expired reservation demotions",
             &expr("router_humm_demoted_expired_total"),
             "interface {{interface}}",
+            "pps",
             8, 24, 0, 8,
         ),
         make_timeseries_panel(
@@ -203,7 +237,16 @@ fn make_as_dashboard(isd_as: &str, slug: &str) -> serde_json::Value {
             "Token bucket demotions",
             &expr("router_humm_demoted_tokenbucket_total"),
             "interface {{interface}}",
+            "pps",
             8, 24, 0, 16,
+        ),
+        make_timeseries_panel(
+            4,
+            "Demotion rate (% of flyover packets)",
+            &demotion_pct_expr,
+            "interface {{interface}}",
+            "percent",
+            8, 24, 0, 24,
         ),
     ];
 
