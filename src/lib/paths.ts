@@ -1,9 +1,9 @@
-import type { TopologyEdge, TopologyNode, InterfaceNodeData } from './topology';
-import type { ScionPath } from '../bindings';
+import type { TopologyEdge, TopologyNode, InterfaceNodeData } from "./topology";
+import type { ScionPath, Topology } from "../bindings";
 
 export interface HighlightedPath {
   edgeIds: string[];
-  edgeDirections: Map<string, 'forward' | 'reverse'>;
+  edgeDirections: Map<string, "forward" | "reverse">;
 }
 
 export function mapPathToEdges(
@@ -11,9 +11,12 @@ export function mapPathToEdges(
   nodes: TopologyNode[],
   edges: TopologyEdge[],
 ): HighlightedPath {
-  const interfaceNodes = nodes.filter((n) => n.type === 'interface');
+  const interfaceNodes = nodes.filter((n) => n.type === "interface");
 
-  function findInterfaceNodeId(isdAs: string, interfaceId: number): string | null {
+  function findInterfaceNodeId(
+    isdAs: string,
+    interfaceId: number,
+  ): string | null {
     const node = interfaceNodes.find((n) => {
       const data = n.data as InterfaceNodeData;
       return data.asId === isdAs && data.interfaceId === interfaceId;
@@ -22,7 +25,7 @@ export function mapPathToEdges(
   }
 
   const edgeIds: string[] = [];
-  const edgeDirections = new Map<string, 'forward' | 'reverse'>();
+  const edgeDirections = new Map<string, "forward" | "reverse">();
 
   for (let i = 0; i < path.interfaces.length - 1; i += 2) {
     const iface0 = path.interfaces[i];
@@ -44,9 +47,78 @@ export function mapPathToEdges(
     edgeIds.push(edge.id);
     edgeDirections.set(
       edge.id,
-      edge.source === nodeId0 ? 'forward' : 'reverse',
+      edge.source === nodeId0 ? "forward" : "reverse",
     );
   }
 
   return { edgeIds, edgeDirections };
+}
+
+export function pathHasNetCond(path: ScionPath, topology: Topology): boolean {
+  for (const iface of path.interfaces) {
+    const asInfo = topology.ases[iface.isd_as];
+    if (!asInfo) continue;
+    for (const br of asInfo.border_routers) {
+      if (br.interfaces[iface.interface_id]?.net_cond) return true;
+    }
+  }
+  return false;
+}
+
+export interface PathNetStats {
+  delay_ms?: number;
+  rate_kbps?: number;
+  loss_percent?: number;
+  duplicate_percent?: number;
+  corrupt_percent?: number;
+  mtu?: number;
+}
+
+export function computePathNetStats(
+  path: ScionPath,
+  topology: Topology,
+): PathNetStats {
+  let delay = 0;
+  let rate = Infinity;
+  let lossSurvival = 1;
+  let dupFactor = 1;
+  let corruptSurvival = 1;
+  let mtu = Infinity;
+
+  for (const iface of path.interfaces) {
+    const asInfo = topology.ases[iface.isd_as];
+    if (!asInfo) continue;
+    let nc = null;
+    for (const br of asInfo.border_routers) {
+      const ifaceInfo = br.interfaces[iface.interface_id];
+      if (ifaceInfo) {
+        nc = ifaceInfo.net_cond;
+        break;
+      }
+    }
+    if (!nc) continue;
+    delay += nc.delay_ms ?? 0;
+    rate = Math.min(rate, nc.rate_kbps ?? Infinity);
+    lossSurvival *= 1 - (nc.loss_percent ?? 0) / 100;
+    dupFactor *= 1 + (nc.duplicate_percent ?? 0) / 100;
+    corruptSurvival *= 1 - (nc.corrupt_percent ?? 0) / 100;
+    mtu = Math.min(mtu, nc.mtu ?? Infinity);
+  }
+
+  const undefinedIfDefault = (value: number, default_value: number) => {
+    if (value == default_value) {
+      return undefined;
+    } else {
+      return value;
+    }
+  };
+
+  return {
+    delay_ms: undefinedIfDefault(delay, 0),
+    rate_kbps: undefinedIfDefault(rate, Infinity),
+    loss_percent: undefinedIfDefault((1 - lossSurvival) * 100, 0),
+    duplicate_percent: undefinedIfDefault((dupFactor - 1) * 100, 0),
+    corrupt_percent: undefinedIfDefault((1 - corruptSurvival) * 100, 0),
+    mtu: undefinedIfDefault(mtu, Infinity),
+  };
 }
