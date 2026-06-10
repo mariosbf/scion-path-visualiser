@@ -118,7 +118,8 @@ async fn setup_scion_network(
 
     let as_ids: Vec<String> = topo.ases.keys().map(|k| k.0.to_string()).collect();
     if config.run_grafana {
-        app.emit("scion-setup-phase", "Configuring monitoring…").ok();
+        app.emit("scion-setup-phase", "Configuring monitoring…")
+            .ok();
         grafana::generate_grafana_config(&gen_dir, &as_ids)
             .map_err(|e| format!("Failed to generate Grafana config: {e}"))?;
         grafana::patch_monitoring_dc(&gen_dir)
@@ -154,7 +155,8 @@ async fn setup_scion_network(
         }
 
         // Start monitoring stack (Prometheus, Jaeger, Grafana)
-        app.emit("scion-setup-phase", "Starting monitoring stack…").ok();
+        app.emit("scion-setup-phase", "Starting monitoring stack…")
+            .ok();
 
         let mut child = tokio::process::Command::new("./scion.sh")
             .args(["start-monitoring"])
@@ -327,11 +329,15 @@ async fn reset_to_setup(
     let (scion_folder, run_topology) = {
         let guard = state.lock().unwrap();
         let running = guard.running()?;
-        (running.config.scion_folder.clone(), running.config.run_topology)
+        (
+            running.config.scion_folder.clone(),
+            running.config.run_topology,
+        )
     };
 
     if run_topology {
-        app.emit("scion-setup-phase", "Stopping SCION topology…").ok();
+        app.emit("scion-setup-phase", "Stopping SCION topology…")
+            .ok();
 
         let mut child = tokio::process::Command::new("./scion.sh")
             .args(["stop"])
@@ -389,33 +395,43 @@ async fn start_log_stream(
     use std::process::Stdio;
     use tokio::io::{AsyncBufReadExt, BufReader};
 
-    let log_path = {
+    let mut child = {
         let state = app_state.lock().unwrap();
-        let folder = state.running()?.config.scion_folder.clone();
-        std::path::Path::new(&folder)
-            .join("logs")
-            .join(format!("{service_name}.log"))
+        let running = state.running()?;
+        if matches!(running.config.running_mode, RunningMode::Docker) {
+            let container = format!("scion-{service_name}-1");
+            debug!("Streaming Docker logs for container: {container}");
+            tokio::process::Command::new("sh")
+                .args(["-c", &format!("docker logs --tail 200 -f {container} 2>&1")])
+                .stdout(Stdio::piped())
+                .stderr(Stdio::null())
+                .kill_on_drop(true)
+                .spawn()
+                .map_err(|e| format!("Failed to spawn docker logs: {e}"))?
+        } else {
+            let log_path = std::path::Path::new(&running.config.scion_folder)
+                .join("logs")
+                .join(format!("{service_name}.log"));
+            if !log_path.exists() {
+                return Err(format!("Log file not found: {}", log_path.display()));
+            }
+            debug!("Reading log: {}", log_path.display());
+            tokio::process::Command::new("tail")
+                .args([
+                    "-n",
+                    "200",
+                    "-f",
+                    log_path
+                        .to_str()
+                        .ok_or("Log path contains invalid Unicode")?,
+                ])
+                .stdout(Stdio::piped())
+                .stderr(Stdio::null())
+                .kill_on_drop(true)
+                .spawn()
+                .map_err(|e| format!("Failed to spawn tail: {e}"))?
+        }
     };
-
-    if !log_path.exists() {
-        return Err(format!("Log file not found: {}", log_path.display()));
-    }
-
-    debug!("Reading log: {}", log_path.to_str().unwrap());
-    let mut child = tokio::process::Command::new("tail")
-        .args([
-            "-n",
-            "200",
-            "-f",
-            log_path
-                .to_str()
-                .ok_or("Log path contains invalid Unicode")?,
-        ])
-        .stdout(Stdio::piped())
-        .stderr(Stdio::null())
-        .kill_on_drop(true)
-        .spawn()
-        .map_err(|e| format!("Failed to spawn tail: {e}"))?;
 
     let stdout = child.stdout.take().ok_or("stdout not piped")?;
     let stream_id = uuid::Uuid::new_v4().to_string();
