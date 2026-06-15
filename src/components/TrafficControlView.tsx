@@ -11,6 +11,7 @@ import { commands } from "../bindings";
 import type { Link, Topology } from "../bindings";
 import useTopologyCanvas from "../hooks/useTopologyCanvas";
 import { TopologyCanvas } from "./TopologyCanvas";
+import { BulkTrafficControlDrawer } from "./drawers/BulkTrafficControlDrawer";
 import { InfoItem } from "./drawers/InfoItem";
 import type { InterfaceSelection } from "./drawers/InterfaceDetailDrawer";
 import { TrafficControlDrawer } from "./drawers/TrafficControlDrawer";
@@ -23,7 +24,7 @@ export function TrafficControlView({ topology }: Props) {
   const { canvasProps, selected, setSelected, selectedInfo } =
     useTopologyCanvas(topology);
 
-  const drawersStack = useDrawersStack(["detail", "tc-control"]);
+  const drawersStack = useDrawersStack(["detail", "tc-control", "tc-bulk"]);
   const { open: openDrawer, closeAll: closeAllDrawers } = drawersStack;
 
   const [activeInterface, setActiveInterface] =
@@ -91,14 +92,21 @@ export function TrafficControlView({ topology }: Props) {
         }}
       />
 
-      <Button
-        color="red"
-        loading={clearAllLoading}
-        onClick={handleClearAll}
+      <BulkTrafficControlDrawer
+        {...drawersStack.register("tc-bulk")}
+        topology={topology}
+        onClose={() => drawersStack.close("tc-bulk")}
+      />
+
+      <Stack
+        gap="sm"
         style={{ position: "fixed", bottom: 24, right: 24, zIndex: 200 }}
       >
-        Clear all
-      </Button>
+        <Button onClick={() => openDrawer("tc-bulk")}>Bulk edit interfaces</Button>
+        <Button color="red" loading={clearAllLoading} onClick={handleClearAll}>
+          Clear all
+        </Button>
+      </Stack>
 
       {clearAllError && (
         <Notification
