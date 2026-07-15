@@ -620,7 +620,7 @@ mod tests {
 
     #[test]
     fn build_topology_child_link_endpoints() {
-        let topo = build_topology(make_fixture(), HashMap::new(), make_sd_fixture()).unwrap();
+        let topo = build_topology(make_fixture(), HashMap::new(), make_sd_fixture(), RawIfidConfig { by_as: HashMap::new() }).unwrap();
         let link = &topo.links[0];
         assert!(matches!(link.link_type, LinkType::Child));
         // Link processed from smaller IsdAsn side (1-ff00:0:110 < 1-ff00:0:111)
@@ -711,7 +711,7 @@ mod tests {
 
     #[test]
     fn build_topology_includes_daemon_info() {
-        let topo = build_topology(make_fixture(), HashMap::new(), make_sd_fixture()).unwrap();
+        let topo = build_topology(make_fixture(), HashMap::new(), make_sd_fixture(), RawIfidConfig { by_as: HashMap::new() }).unwrap();
         let as110 = topo
             .ases
             .iter()
@@ -728,7 +728,7 @@ mod tests {
 
     #[test]
     fn build_topology_errors_on_missing_daemon() {
-        let result = build_topology(make_fixture(), HashMap::new(), HashMap::new());
+        let result = build_topology(make_fixture(), HashMap::new(), HashMap::new(), RawIfidConfig { by_as: HashMap::new() });
         assert!(result.is_err());
         let msg = result.unwrap_err().to_string();
         assert!(
