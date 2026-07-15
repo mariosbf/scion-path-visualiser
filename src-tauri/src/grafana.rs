@@ -28,6 +28,13 @@ pub fn generate_grafana_config(gen_dir: &Path, as_ids: &[String]) -> Result<(), 
     )
     .map_err(|e| format!("Failed to write overview.json: {e}"))?;
 
+    let queue_depth = make_queue_depth_dashboard();
+    std::fs::write(
+        dashboards_dir.join("queue-depth.json"),
+        serde_json::to_string_pretty(&queue_depth).map_err(|e| e.to_string())?,
+    )
+    .map_err(|e| format!("Failed to write queue-depth.json: {e}"))?;
+
     let mut sorted_ids = as_ids.to_vec();
     sorted_ids.sort();
 
@@ -189,6 +196,46 @@ fn make_overview_dashboard() -> serde_json::Value {
     serde_json::json!({
         "uid": "as-overview",
         "title": "AS Overview — Demotions",
+        "schemaVersion": 37,
+        "version": 1,
+        "refresh": "5s",
+        "panels": panels
+    })
+}
+
+fn make_queue_depth_dashboard() -> serde_json::Value {
+    let legend = "{{isd_as}} · {{instance}} · {{interface}}";
+
+    let panels = vec![
+        make_timeseries_panel(
+            1,
+            "Queue depth per border router (priority + best-effort)",
+            "sum by (isd_as, instance) (router_queue_depth)",
+            "{{isd_as}} · {{instance}}",
+            "short",
+            8, 24, 0, 0,
+        ),
+        make_timeseries_panel(
+            2,
+            "Priority queue depth",
+            "router_queue_depth{queue=\"priority\"}",
+            legend,
+            "short",
+            8, 24, 0, 8,
+        ),
+        make_timeseries_panel(
+            3,
+            "Best-effort queue depth",
+            "router_queue_depth{queue=\"best_effort\"}",
+            legend,
+            "short",
+            8, 24, 0, 16,
+        ),
+    ];
+
+    serde_json::json!({
+        "uid": "border-router-queue-depth",
+        "title": "Border Router Queue Depth",
         "schemaVersion": 37,
         "version": 1,
         "refresh": "5s",
