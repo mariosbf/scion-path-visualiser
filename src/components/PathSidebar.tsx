@@ -128,7 +128,10 @@ export function PathSidebar({
             const asCount = path.interfaces.length / 2 + 1;
             const expiry = new Date(path.expiry).toLocaleTimeString();
             const isSelected = selectedPath === path;
-            const stats: PathNetStats = computePathNetStats(path, topology);
+            const beStats = computePathNetStats(path, topology, "best_effort");
+            const hbStats = computePathNetStats(path, topology, "hbird");
+            const hasBeStats = Object.values(beStats).some((v) => v !== undefined);
+            const hasHbStats = Object.values(hbStats).some((v) => v !== undefined);
 
             return (
               <Card
@@ -166,35 +169,11 @@ export function PathSidebar({
                     <Text size="xs" c="dimmed">
                       Expires {expiry}
                     </Text>
-                    {stats.mtu !== undefined && (
-                      <Text size="xs" c="dimmed">
-                        MTU {stats.mtu}
-                      </Text>
+                    {hasBeStats && (
+                      <NetStatsSection label="Best-effort" stats={beStats} />
                     )}
-                    {stats.delay_ms !== undefined && (
-                      <Text size="xs" c="dimmed">
-                        Latency {stats.delay_ms} ms
-                      </Text>
-                    )}
-                    {stats.rate_kbps !== undefined && (
-                      <Text size="xs" c="dimmed">
-                        Bandwidth {`${stats.rate_kbps} kbps`}
-                      </Text>
-                    )}
-                    {stats.loss_percent !== undefined && (
-                      <Text size="xs" c="dimmed">
-                        Loss {`${stats.loss_percent.toFixed(2)} %`}
-                      </Text>
-                    )}
-                    {stats.duplicate_percent !== undefined && (
-                      <Text size="xs" c="dimmed">
-                        Duplication {`${stats.duplicate_percent.toFixed(2)} %`}
-                      </Text>
-                    )}
-                    {stats.corrupt_percent !== undefined && (
-                      <Text size="xs" c="dimmed">
-                        Corruption {`${stats.corrupt_percent.toFixed(2)} %`}
-                      </Text>
+                    {hasHbStats && (
+                      <NetStatsSection label="Hummingbird" stats={hbStats} />
                     )}
                   </Stack>
                 </Group>
@@ -204,5 +183,51 @@ export function PathSidebar({
         </Stack>
       </Box>
     </Box>
+  );
+}
+
+function NetStatsSection({
+  label,
+  stats,
+}: {
+  label: string;
+  stats: PathNetStats;
+}) {
+  return (
+    <Stack gap={1} mt={4}>
+      <Text size="xs" fw={600} c="dimmed">
+        {label}
+      </Text>
+      {stats.mtu !== undefined && (
+        <Text size="xs" c="dimmed">
+          MTU {stats.mtu}
+        </Text>
+      )}
+      {stats.delay_ms !== undefined && (
+        <Text size="xs" c="dimmed">
+          Latency {stats.delay_ms} ms
+        </Text>
+      )}
+      {stats.rate_kbps !== undefined && (
+        <Text size="xs" c="dimmed">
+          Bandwidth {stats.rate_kbps} kbps
+        </Text>
+      )}
+      {stats.loss_percent !== undefined && (
+        <Text size="xs" c="dimmed">
+          Loss {stats.loss_percent.toFixed(2)} %
+        </Text>
+      )}
+      {stats.duplicate_percent !== undefined && (
+        <Text size="xs" c="dimmed">
+          Duplication {stats.duplicate_percent.toFixed(2)} %
+        </Text>
+      )}
+      {stats.corrupt_percent !== undefined && (
+        <Text size="xs" c="dimmed">
+          Corruption {stats.corrupt_percent.toFixed(2)} %
+        </Text>
+      )}
+    </Stack>
   );
 }

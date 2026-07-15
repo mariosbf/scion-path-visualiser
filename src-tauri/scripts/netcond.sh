@@ -5,6 +5,11 @@
 # the host, so iproute2 need not be installed inside the container image.
 # Requires root (sudo) for nsenter.
 #
+# When netem conditions are set, a 2-band prio qdisc is installed as root.
+# Hummingbird priority packets (DSCP EF, TOS 0xb8) are directed to band 1 and
+# bypass netem entirely; all other traffic (best-effort) goes to band 2 where
+# the netem conditions are applied.
+#
 # Usage:
 #   ./netcond.sh links
 #   ./netcond.sh set   <br-name> <ifid> [delay <ms>] [loss <%>] [rate <kbps>] [dup <%>] [corrupt <%>] [reorder <%>] [mtu <bytes>]
@@ -117,17 +122,22 @@ cmd_set() {
     [[ $# -ge 3 ]] || { usage; exit 1; }
     local br="$1" ifid="$2"; shift 2
 
-    # Parse netem parameters and MTU
+    # Parse netem parameters, MTU, and traffic selector
     local netem_args=()
     local mtu_val=""
+    local traffic="be"   # be | hbird | all
     while [[ $# -gt 0 ]]; do
         case "$1" in
-            delay)   netem_args+=("delay" "${2}ms");       shift 2 ;;
-            loss)    netem_args+=("loss" "${2}%");         shift 2 ;;
-            rate)    netem_args+=("rate" "${2}kbit");      shift 2 ;;
+            traffic) traffic="$2"
+                     [[ "$traffic" == "be" || "$traffic" == "hbird" || "$traffic" == "all" ]] \
+                         || die "traffic must be one of: be, hbird, all"
+                     shift 2 ;;
+            delay)   netem_args+=("delay" "${2}ms");          shift 2 ;;
+            loss)    netem_args+=("loss" "${2}%");            shift 2 ;;
+            rate)    netem_args+=("rate" "${2}kbit");         shift 2 ;;
             dup|duplicate) netem_args+=("duplicate" "${2}%"); shift 2 ;;
-            corrupt) netem_args+=("corrupt" "${2}%");     shift 2 ;;
-            reorder) netem_args+=("reorder" "${2}%");     shift 2 ;;
+            corrupt) netem_args+=("corrupt" "${2}%");         shift 2 ;;
+            reorder) netem_args+=("reorder" "${2}%");         shift 2 ;;
             mtu)     mtu_val="$2"
                      [[ "$mtu_val" -ge 1280 ]] || die "MTU must be >= 1280 (IPv6 minimum; lower values remove IPv6 addresses from the interface)"
                      shift 2 ;;
@@ -152,8 +162,32 @@ cmd_set() {
     echo "→ $container : $iface  (BR $br ifid $ifid, local $addr)"
 
     if [[ ${#netem_args[@]} -gt 0 ]]; then
-        echo "  tc netem ${netem_args[*]}"
-        nsenter -t "$pid" -n tc qdisc replace dev "$iface" root netem "${netem_args[@]}"
+        echo "  tc netem (traffic=$traffic): ${netem_args[*]}"
+
+        # Ensure the 2-band prio structure exists regardless of traffic selector.
+        # del root only when no prio qdisc is present yet; otherwise a second set call
+        # would wipe the first band's netem.
+        if ! nsenter -t "$pid" -n tc qdisc show dev "$iface" 2>/dev/null | grep -q 'qdisc prio 1:'; then
+            nsenter -t "$pid" -n tc qdisc del dev "$iface" root 2>/dev/null || true
+            nsenter -t "$pid" -n tc qdisc add dev "$iface" root handle 1: prio \
+                bands 2 priomap 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1
+            # IPv4: DSCP EF (TOS 0xb8, mask 0xfc) → band 1
+            nsenter -t "$pid" -n tc filter add dev "$iface" parent 1:0 \
+                protocol ip prio 1 u32 match ip tos 0xb8 0xfc flowid 1:1
+            # IPv6: DSCP EF in Traffic Class → band 1
+            nsenter -t "$pid" -n tc filter add dev "$iface" parent 1:0 \
+                protocol ipv6 prio 2 u32 \
+                match u8 0x0b 0x0f at 0 \
+                match u8 0x80 0xc0 at 1 \
+                flowid 1:1
+        fi
+        # Apply netem to the target band(s).
+        if [[ "$traffic" == "hbird" || "$traffic" == "all" ]]; then
+            nsenter -t "$pid" -n tc qdisc replace dev "$iface" parent 1:1 handle 10: netem "${netem_args[@]}"
+        fi
+        if [[ "$traffic" == "be" || "$traffic" == "all" ]]; then
+            nsenter -t "$pid" -n tc qdisc replace dev "$iface" parent 1:2 handle 20: netem "${netem_args[@]}"
+        fi
     fi
 
     if [[ -n "$mtu_val" ]]; then
@@ -210,27 +244,25 @@ cmd_clear_all() {
 
 cmd_status() {
     local found=0
-    list_all_interfaces \
-        | sort -k1,1 -k2,2n \
-        | while IFS=$'\t' read -r br ifid local _ peer_as _; do
-            local container pid iface ip
-            container=$(get_container "$br" 2>/dev/null) || continue
-            [[ -n "$container" ]] || continue
-            pid=$(get_pid "$container" 2>/dev/null) || continue
-            [[ "$pid" -gt 0 ]] 2>/dev/null || continue
-            ip=$(normalize_ip "$local")
-            iface=$(find_iface_by_ip "$pid" "$ip" 2>/dev/null) || continue
-            [[ -n "$iface" ]] || continue
+    while IFS=$'\t' read -r br ifid local _ peer_as _; do
+        local container pid iface ip
+        container=$(get_container "$br" 2>/dev/null) || continue
+        [[ -n "$container" ]] || continue
+        pid=$(get_pid "$container" 2>/dev/null) || continue
+        [[ "$pid" -gt 0 ]] 2>/dev/null || continue
+        ip=$(normalize_ip "$local")
+        iface=$(find_iface_by_ip "$pid" "$ip" 2>/dev/null) || continue
+        [[ -n "$iface" ]] || continue
 
-            local qdisc
-            qdisc=$(nsenter -t "$pid" -n tc qdisc show dev "$iface" 2>/dev/null \
-                | grep -v 'noqueue\|pfifo_fast\|fq_codel\|mq' || true)
-            if [[ -n "$qdisc" ]]; then
-                printf "%-30s  ifid %-5s  → %-20s  %s: %s\n" \
-                    "$br" "$ifid" "$peer_as" "$iface" "$qdisc"
-                found=1
-            fi
-        done
+        local netem_line
+        netem_line=$(nsenter -t "$pid" -n tc qdisc show dev "$iface" 2>/dev/null \
+            | grep 'netem ' || true)
+        if [[ -n "$netem_line" ]]; then
+            printf "%-30s  ifid %-5s  → %-20s  %s: %s\n" \
+                "$br" "$ifid" "$peer_as" "$iface" "$netem_line"
+            found=1
+        fi
+    done < <(list_all_interfaces | sort -k1,1 -k2,2n)
     [[ $found -eq 1 ]] || echo "No active network conditions."
 }
 
@@ -240,17 +272,20 @@ usage() {
     cat <<EOF
 Usage:
   $0 links                                         List all BR inter-AS interfaces
-  $0 set   <br> <ifid> [delay <ms>] [loss <%>]    Set link conditions
-                       [rate <kbps>] [dup <%>]
-                       [corrupt <%>] [reorder <%>]
-                       [mtu <bytes>]
+  $0 set   <br> <ifid> [traffic be|hbird|all]      Set link conditions.
+                       [delay <ms>] [loss <%>]     traffic: which packets are affected
+                       [rate <kbps>] [dup <%>]       be    — best-effort only (default)
+                       [corrupt <%>] [reorder <%>]   hbird — Hummingbird priority only
+                       [mtu <bytes>]                 all   — all traffic (flat netem)
   $0 clear <br> <ifid>                             Clear conditions on one link
   $0 clear-all                                     Clear all conditions
-  $0 status                                        Show active conditions
+  $0 status                                        Show active netem conditions
 
 Examples:
   $0 links
-  sudo $0 set   br1-ff00_0_110-1 1 delay 50 loss 1
+  sudo $0 set   br1-ff00_0_110-1 1 loss 10                      # BE only (default)
+  sudo $0 set   br1-ff00_0_110-1 1 traffic hbird loss 5         # hbird priority only
+  sudo $0 set   br1-ff00_0_110-1 1 traffic all  delay 50 loss 1 # all traffic
   sudo $0 set   br1-ff00_0_110-1 1 delay 100 rate 10000
   sudo $0 clear br1-ff00_0_110-1 1
   sudo $0 status

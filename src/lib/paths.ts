@@ -59,7 +59,8 @@ export function pathHasNetCond(path: ScionPath, topology: Topology): boolean {
     const asInfo = topology.ases[iface.isd_as];
     if (!asInfo) continue;
     for (const br of asInfo.border_routers) {
-      if (br.interfaces[iface.interface_id]?.net_cond) return true;
+      const nc = br.interfaces[iface.interface_id]?.net_cond;
+      if (nc?.best_effort || nc?.hbird) return true;
     }
   }
   return false;
@@ -77,6 +78,7 @@ export interface PathNetStats {
 export function computePathNetStats(
   path: ScionPath,
   topology: Topology,
+  trafficClass: "best_effort" | "hbird",
 ): PathNetStats {
   let delay = 0;
   let rate = Infinity;
@@ -92,7 +94,7 @@ export function computePathNetStats(
     for (const br of asInfo.border_routers) {
       const ifaceInfo = br.interfaces[iface.interface_id];
       if (ifaceInfo) {
-        nc = ifaceInfo.net_cond;
+        nc = ifaceInfo.net_cond[trafficClass];
         break;
       }
     }
@@ -105,12 +107,9 @@ export function computePathNetStats(
     mtu = Math.min(mtu, nc.mtu ?? Infinity);
   }
 
-  const undefinedIfDefault = (value: number, default_value: number) => {
-    if (value == default_value) {
-      return undefined;
-    } else {
-      return value;
-    }
+  const undefinedIfDefault = (value: number, defaultValue: number) => {
+    if (value === defaultValue) return undefined;
+    return value;
   };
 
   return {

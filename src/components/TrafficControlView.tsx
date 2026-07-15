@@ -4,6 +4,7 @@ import {
   DrawerStack,
   Notification,
   Stack,
+  Text,
   useDrawersStack,
 } from "@mantine/core";
 import { useEffect, useState } from "react";
@@ -146,34 +147,51 @@ function LinkDetailPanel({
   );
   const endInterface = endRouter?.interfaces[data.b.interface_id];
 
-  const startNetCond = startInterface?.net_cond;
-  const endNetCond = endInterface?.net_cond;
+  const startBe = startInterface?.net_cond.best_effort ?? null;
+  const endBe = endInterface?.net_cond.best_effort ?? null;
+  const startHbird = startInterface?.net_cond.hbird ?? null;
+  const endHbird = endInterface?.net_cond.hbird ?? null;
 
-  const linkDelay = (startNetCond?.delay_ms ?? 0) + (endNetCond?.delay_ms ?? 0);
-  const linkRate = Math.min(
-    startNetCond?.rate_kbps ?? Infinity,
-    endNetCond?.rate_kbps ?? Infinity,
-  );
-  const linkLoss =
-    1 -
-    (1 - (startNetCond?.loss_percent ?? 0) / 100) *
-    (1 - (endNetCond?.loss_percent ?? 0) / 100);
-
-  // Need to take into account that each copy of a duplicated packet may again
-  // be duplicated
-  const linkDup =
-    (1 + (startNetCond?.duplicate_percent ?? 0) / 100) *
-    (1 + (endNetCond?.duplicate_percent ?? 0) / 100) -
-    1;
-
-  // Assume that a packet that is corrupted at both endpoints is still corrupted
-  // (i.e. corruption at one endpoint doesn't "fix" the corruption at the other)
-  const linkCorrupt =
-    1 -
-    (1 - (startNetCond?.corrupt_percent ?? 0) / 100) *
-    (1 - (endNetCond?.corrupt_percent ?? 0) / 100);
+  function linkDelay(a: typeof startBe, b: typeof endBe) {
+    return (a?.delay_ms ?? 0) + (b?.delay_ms ?? 0);
+  }
+  function linkRate(a: typeof startBe, b: typeof endBe) {
+    return Math.min(a?.rate_kbps ?? Infinity, b?.rate_kbps ?? Infinity);
+  }
+  function linkLoss(a: typeof startBe, b: typeof endBe) {
+    return (
+      1 -
+      (1 - (a?.loss_percent ?? 0) / 100) * (1 - (b?.loss_percent ?? 0) / 100)
+    );
+  }
+  function linkDup(a: typeof startBe, b: typeof endBe) {
+    return (
+      (1 + (a?.duplicate_percent ?? 0) / 100) *
+        (1 + (b?.duplicate_percent ?? 0) / 100) -
+      1
+    );
+  }
+  function linkCorrupt(a: typeof startBe, b: typeof endBe) {
+    return (
+      1 -
+      (1 - (a?.corrupt_percent ?? 0) / 100) *
+        (1 - (b?.corrupt_percent ?? 0) / 100)
+    );
+  }
 
   // Note: don't try to model reorder percentage here.
+
+  const beDelay = linkDelay(startBe, endBe);
+  const beRate = linkRate(startBe, endBe);
+  const beLoss = linkLoss(startBe, endBe);
+  const beDup = linkDup(startBe, endBe);
+  const beCorrupt = linkCorrupt(startBe, endBe);
+
+  const hbDelay = linkDelay(startHbird, endHbird);
+  const hbRate = linkRate(startHbird, endHbird);
+  const hbLoss = linkLoss(startHbird, endHbird);
+  const hbDup = linkDup(startHbird, endHbird);
+  const hbCorrupt = linkCorrupt(startHbird, endHbird);
 
   return (
     <Stack gap="sm">
@@ -186,27 +204,28 @@ function LinkDetailPanel({
         value={`${data.b.as_id} (if: ${data.b.interface_id})`}
       />
       <InfoItem label="Link Type" value={data.link_type} />
-      <InfoItem label="Delay" value={`${linkDelay} ms`} noCopy />
+
+      <Text size="sm" fw={700} c="dimmed">Best-effort</Text>
+      <InfoItem label="Delay" value={`${beDelay} ms`} noCopy />
       <InfoItem
         label="Rate"
-        value={linkRate === Infinity ? "Not limited" : `${linkRate} kbps`}
+        value={beRate === Infinity ? "Not limited" : `${beRate} kbps`}
         noCopy
       />
+      <InfoItem label="Loss" value={`${(beLoss * 100).toFixed(2)} %`} noCopy />
+      <InfoItem label="Duplication" value={`${(beDup * 100).toFixed(2)} %`} noCopy />
+      <InfoItem label="Corruption" value={`${(beCorrupt * 100).toFixed(2)} %`} noCopy />
+
+      <Text size="sm" fw={700} c="dimmed">Hummingbird priority</Text>
+      <InfoItem label="Delay" value={`${hbDelay} ms`} noCopy />
       <InfoItem
-        label="Loss"
-        value={`${(linkLoss * 100).toFixed(2)} %`}
+        label="Rate"
+        value={hbRate === Infinity ? "Not limited" : `${hbRate} kbps`}
         noCopy
       />
-      <InfoItem
-        label="Duplication"
-        value={`${(linkDup * 100).toFixed(2)} %`}
-        noCopy
-      />
-      <InfoItem
-        label="Corruption"
-        value={`${(linkCorrupt * 100).toFixed(2)} %`}
-        noCopy
-      />
+      <InfoItem label="Loss" value={`${(hbLoss * 100).toFixed(2)} %`} noCopy />
+      <InfoItem label="Duplication" value={`${(hbDup * 100).toFixed(2)} %`} noCopy />
+      <InfoItem label="Corruption" value={`${(hbCorrupt * 100).toFixed(2)} %`} noCopy />
     </Stack>
   );
 }

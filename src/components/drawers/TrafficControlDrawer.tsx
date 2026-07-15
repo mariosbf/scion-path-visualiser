@@ -6,6 +6,7 @@ import {
   Drawer,
   Group,
   NumberInput,
+  Select,
   Slider,
   Stack,
   Text,
@@ -14,7 +15,7 @@ import {
 import { IconAlertCircle, IconEraser } from "@tabler/icons-react";
 import type { ComponentPropsWithoutRef } from "react";
 import { useEffect, useState } from "react";
-import type { NetCondParams, Topology } from "../../bindings";
+import type { NetCondParams, Topology, TrafficClass } from "../../bindings";
 import { commands } from "../../bindings";
 import type { InterfaceSelection } from "./InterfaceDetailDrawer";
 import { useHotkeys } from "@mantine/hooks";
@@ -63,8 +64,9 @@ function TrafficControlContent({
   // Look up current net_cond from live topology (not stale snapshot in selection)
   const currentNetCond =
     topology.ases[asId]?.border_routers.find((r) => r.name === router.name)
-      ?.interfaces[interfaceId]?.net_cond ?? null;
+      ?.interfaces[interfaceId]?.net_cond ?? { best_effort: null, hbird: null };
 
+  const [traffic, setTraffic] = useState<TrafficClass>("best_effort");
   const [delay, setDelay] = useState<number | string>("");
   const [loss, setLoss] = useState<number>();
   const [rate, setRate] = useState<number | string>("");
@@ -75,18 +77,21 @@ function TrafficControlContent({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Pre-fill from current conditions when the selected interface changes
+  const activeNetCond =
+    traffic === "hbird" ? currentNetCond.hbird : currentNetCond.best_effort;
+
+  // Pre-fill from current conditions when the selected interface or traffic class changes
   useEffect(() => {
-    setDelay(currentNetCond?.delay_ms ?? "");
-    setLoss(currentNetCond?.loss_percent ?? undefined);
-    setRate(currentNetCond?.rate_kbps ?? "");
-    setDup(currentNetCond?.duplicate_percent ?? undefined);
-    setCorrupt(currentNetCond?.corrupt_percent ?? undefined);
-    setReorder(currentNetCond?.reorder_percent ?? undefined);
-    setMtu(currentNetCond?.mtu ?? "");
+    setDelay(activeNetCond?.delay_ms ?? "");
+    setLoss(activeNetCond?.loss_percent ?? undefined);
+    setRate(activeNetCond?.rate_kbps ?? "");
+    setDup(activeNetCond?.duplicate_percent ?? undefined);
+    setCorrupt(activeNetCond?.corrupt_percent ?? undefined);
+    setReorder(activeNetCond?.reorder_percent ?? undefined);
+    setMtu(activeNetCond?.mtu ?? "");
     setError(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [router.name, interfaceId]);
+  }, [router.name, interfaceId, traffic]);
 
   const handleSet = async () => {
     const params: NetCondParams = {
@@ -106,7 +111,7 @@ function TrafficControlContent({
 
     setLoading(true);
     setError(null);
-    const result = await commands.netcondSet(router.name, interfaceId, params);
+    const result = await commands.netcondSet(router.name, interfaceId, traffic, params);
     setLoading(false);
     if (result.status === "error") {
       setError(result.error);
@@ -159,6 +164,19 @@ function TrafficControlContent({
 
   return (
     <Stack gap="md">
+      <Select
+        label="Traffic class"
+        data={[
+          { value: "best_effort", label: "Best-effort" },
+          { value: "hbird", label: "Hummingbird priority" },
+          { value: "all", label: "Both" },
+        ]}
+        value={traffic}
+        onChange={(v) => setTraffic((v ?? "best_effort") as TrafficClass)}
+        allowDeselect={false}
+      />
+      <Divider />
+
       <NumberInput
         label="Delay (ms)"
         placeholder="e.g. 50"

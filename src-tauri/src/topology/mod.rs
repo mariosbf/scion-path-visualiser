@@ -24,6 +24,25 @@ impl specta::Type for IsdAsnDef {
 
 // ── Tauri-facing types ─────────────────────────────────────────────────────────
 
+#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, specta::Type, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum TrafficClass {
+    #[default]
+    BestEffort,
+    Hbird,
+    All,
+}
+
+impl TrafficClass {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            TrafficClass::BestEffort => "be",
+            TrafficClass::Hbird => "hbird",
+            TrafficClass::All => "all",
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, specta::Type)]
 pub struct NetCondParams {
     pub delay_ms: Option<u32>,
@@ -33,6 +52,12 @@ pub struct NetCondParams {
     pub corrupt_percent: Option<f32>,
     pub reorder_percent: Option<f32>,
     pub mtu: Option<u32>,
+}
+
+#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, specta::Type)]
+pub struct InterfaceNetCond {
+    pub best_effort: Option<NetCondParams>,
+    pub hbird: Option<NetCondParams>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
@@ -73,7 +98,7 @@ pub struct BorderRouterInterfaceInfo {
     pub mtu: Option<u32>,
     pub underlay_local: std::net::SocketAddr,
     pub underlay_remote: std::net::SocketAddr,
-    pub net_cond: Option<NetCondParams>,
+    pub net_cond: InterfaceNetCond,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
@@ -160,7 +185,7 @@ impl RawAsTopology {
                                 mtu: iface.mtu,
                                 underlay_local: iface.underlay.local,
                                 underlay_remote: iface.underlay.remote,
-                                net_cond: None,
+                                net_cond: InterfaceNetCond::default(),
                             },
                         )
                     })

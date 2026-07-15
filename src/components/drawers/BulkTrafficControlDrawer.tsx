@@ -8,6 +8,7 @@ import {
   NumberInput,
   Paper,
   ScrollArea,
+  Select,
   Slider,
   Stack,
   Switch,
@@ -18,7 +19,7 @@ import { useHotkeys } from "@mantine/hooks";
 import { IconAlertCircle, IconSearch } from "@tabler/icons-react";
 import type { ComponentPropsWithoutRef } from "react";
 import { useEffect, useMemo, useState } from "react";
-import type { NetCondParams, Topology } from "../../bindings";
+import type { NetCondParams, Topology, TrafficClass } from "../../bindings";
 import { commands } from "../../bindings";
 
 interface Props extends ComponentPropsWithoutRef<typeof Drawer> {
@@ -106,6 +107,7 @@ function BulkTrafficControlContent({
 }) {
   const [query, setQuery] = useState("");
   const [selectedKeys, setSelectedKeys] = useState<string[]>([]);
+  const [traffic, setTraffic] = useState<TrafficClass>("best_effort");
   const [enabledFields, setEnabledFields] = useState<FieldToggleState>(
     DEFAULT_ENABLED_FIELDS,
   );
@@ -173,6 +175,7 @@ function BulkTrafficControlContent({
 
     setQuery("");
     setSelectedKeys(allTargetKeys);
+    setTraffic("best_effort");
     setEnabledFields(DEFAULT_ENABLED_FIELDS);
     setDelay("");
     setLoss(0);
@@ -258,6 +261,7 @@ function BulkTrafficControlContent({
               const result = await commands.netcondSet(
                 target.routerName,
                 target.interfaceId,
+                traffic,
                 params,
               );
               if (result.status === "error") {
@@ -525,6 +529,18 @@ function BulkTrafficControlContent({
       </Paper>
 
       <Divider />
+
+      <Select
+        label="Traffic class"
+        data={[
+          { value: "best_effort", label: "Best-effort" },
+          { value: "hbird", label: "Hummingbird priority" },
+          { value: "all", label: "Both" },
+        ]}
+        value={traffic}
+        onChange={(v) => setTraffic((v ?? "best_effort") as TrafficClass)}
+        allowDeselect={false}
+      />
 
       <Stack gap="md">
         <Group justify="space-between" align="center">

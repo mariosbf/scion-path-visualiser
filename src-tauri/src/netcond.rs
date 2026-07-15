@@ -1,7 +1,7 @@
 use std::process::Stdio;
 use tauri::{Emitter, Manager};
 
-use crate::topology::NetCondParams;
+use crate::topology::{InterfaceNetCond, NetCondParams, TrafficClass};
 use crate::{AppState, AppStateInner, RunningMode};
 
 fn get_scion_folder_if_docker(state: &tauri::State<'_, AppState>) -> Result<String, String> {
@@ -40,13 +40,20 @@ pub async fn netcond_set(
     state: tauri::State<'_, AppState>,
     br: String,
     ifid: u16,
+    traffic: TrafficClass,
     params: NetCondParams,
 ) -> Result<(), String> {
     let scion_folder = get_scion_folder_if_docker(&state)?;
     let script = script_path(&app)?;
     let gen_dir = std::path::Path::new(&scion_folder).join("gen");
 
-    let mut args = vec!["set".to_string(), br.clone(), ifid.to_string()];
+    let mut args = vec![
+        "set".to_string(),
+        br.clone(),
+        ifid.to_string(),
+        "traffic".to_string(),
+        traffic.as_str().to_string(),
+    ];
     if let Some(v) = params.delay_ms {
         args.extend(["delay".to_string(), v.to_string()]);
     }
@@ -69,7 +76,8 @@ pub async fn netcond_set(
         args.extend(["mtu".to_string(), v.to_string()]);
     }
 
-    if args.len() <= 3 {
+    // traffic + br + ifid = 5 args; anything beyond means at least one condition
+    if args.len() <= 5 {
         return Err("At least one condition must be specified".to_string());
     }
 
@@ -93,7 +101,18 @@ pub async fn netcond_set(
                 for router in &mut as_info.border_routers {
                     if router.name == br {
                         if let Some(iface) = router.interfaces.get_mut(&ifid) {
-                            iface.net_cond = Some(params);
+                            match traffic {
+                                TrafficClass::BestEffort => {
+                                    iface.net_cond.best_effort = Some(params);
+                                }
+                                TrafficClass::Hbird => {
+                                    iface.net_cond.hbird = Some(params);
+                                }
+                                TrafficClass::All => {
+                                    iface.net_cond.best_effort = Some(params);
+                                    iface.net_cond.hbird = Some(params);
+                                }
+                            }
                         }
                     }
                 }
@@ -137,7 +156,7 @@ pub async fn netcond_clear(
                 for router in &mut as_info.border_routers {
                     if router.name == br {
                         if let Some(iface) = router.interfaces.get_mut(&ifid) {
-                            iface.net_cond = None;
+                            iface.net_cond = InterfaceNetCond::default();
                         }
                     }
                 }
@@ -178,7 +197,7 @@ pub async fn netcond_clear_all(
             for as_info in running.topology.ases.values_mut() {
                 for router in &mut as_info.border_routers {
                     for iface in router.interfaces.values_mut() {
-                        iface.net_cond = None;
+                        iface.net_cond = InterfaceNetCond::default();
                     }
                 }
             }

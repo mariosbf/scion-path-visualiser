@@ -13,7 +13,7 @@ const stubRouter = {
       mtu: 1472,
       underlay_local: "127.0.0.1:50000",
       underlay_remote: "127.0.0.2:50000",
-      net_cond: null,
+      net_cond: { best_effort: null, hbird: null },
     },
   },
   status: null,

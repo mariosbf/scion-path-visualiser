@@ -77,9 +77,9 @@ async getPaths(srcAs: string, dstAs: string) : Promise<Result<ScionPath[], strin
     else return { status: "error", error: e  as any };
 }
 },
-async netcondSet(br: string, ifid: number, params: NetCondParams) : Promise<Result<null, string>> {
+async netcondSet(br: string, ifid: number, traffic: TrafficClass, params: NetCondParams) : Promise<Result<null, string>> {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("netcond_set", { br, ifid, params }) };
+    return { status: "ok", data: await TAURI_INVOKE("netcond_set", { br, ifid, traffic, params }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
@@ -116,11 +116,12 @@ async netcondClearAll() : Promise<Result<null, string>> {
 export type AppConfig = { scion_folder: string; topo_file: string; run_topology: boolean; running_mode: RunningMode; run_grafana: boolean }
 export type AsInfo = { core: boolean; mtu: number | null; control_service: ControlServiceInfo; discovery_service: DiscoveryServiceInfo; hummingbird: HbirdInfo | null; daemon: ScionDaemonInfo; endhost_api_bridge: EndhostApiBridgeInfo; border_routers: BorderRouterInfo[] }
 export type BorderRouterInfo = { name: string; internal_addr: string; interfaces: { [key in number]: BorderRouterInterfaceInfo }; status: ServiceStatusInfo | null }
-export type BorderRouterInterfaceInfo = { isd_as: string; link_to: string; mtu: number | null; underlay_local: string; underlay_remote: string; net_cond: NetCondParams | null }
+export type BorderRouterInterfaceInfo = { isd_as: string; link_to: string; mtu: number | null; underlay_local: string; underlay_remote: string; net_cond: InterfaceNetCond }
 export type ControlServiceInfo = { addr: string; name: string; status: ServiceStatusInfo | null }
 export type DiscoveryServiceInfo = { addr: string; name: string }
 export type EndhostApiBridgeInfo = { addr: string }
 export type HbirdInfo = { id: string; reservation_duration: string; min_bandwidth: number; max_bandwidth: number; addr: string; status: ServiceStatusInfo | null }
+export type InterfaceNetCond = { best_effort: NetCondParams | null; hbird: NetCondParams | null }
 export type Link = { a: LinkEndpoint; b: LinkEndpoint; link_type: LinkType }
 export type LinkEndpoint = { as_id: string; router_name: string; interface_id: number }
 export type LinkType = "Core" | "Child" | "Peer"
@@ -132,6 +133,7 @@ export type ScionPathInterface = { isd_as: string; interface_id: number }
 export type ServiceState = "Running" | "Stopped" | "Starting" | "Stopping" | "Exited" | "Fatal" | "Unknown" | "Backoff" | "Paused" | "Restarting" | "Dead" | "Created"
 export type ServiceStatusInfo = { state: ServiceState; timestamp: string }
 export type Topology = { ases: { [key in string]: AsInfo }; links: Link[] }
+export type TrafficClass = "best_effort" | "hbird" | "all"
 
 /** tauri-specta globals **/
 
