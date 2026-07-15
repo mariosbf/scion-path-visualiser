@@ -29,7 +29,7 @@ export function EndhostApiBridgeDrawer({ activeAs, ...drawerProps }: Props) {
     if (!activeAs) return;
     setLoading(true);
     setMintError(null);
-    commands.mintToken(activeAs.asId, 86400).then((result) => {
+    commands.mintToken(activeAs.asId, 86400*7).then((result) => {
       setLoading(false);
       if (result.status === "ok") {
         clipboard.copy(result.data);
