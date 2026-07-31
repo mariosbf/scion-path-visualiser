@@ -1,3 +1,4 @@
+pub mod as_config;
 pub mod ehapi_bridge;
 pub mod grafana;
 pub mod netcond;
@@ -244,6 +245,40 @@ fn get_topology(state: tauri::State<'_, AppState>) -> Result<Topology, String> {
     Ok(state.lock().unwrap().running()?.topology.clone())
 }
 
+// File stem of the running .topo file (e.g. "default" for "topology/default.topo"),
+// used by the UI to name exported files after the topology.
+#[tauri::command]
+#[specta::specta]
+fn get_topology_name(state: tauri::State<'_, AppState>) -> Result<String, String> {
+    let state = state.lock().unwrap();
+    let topo_file = &state.running()?.config.topo_file;
+
+    Ok(std::path::Path::new(topo_file)
+        .file_stem()
+        .map(|s| s.to_string_lossy().to_string())
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(|| "topology".to_string()))
+}
+
+// Mirrors the CLI's --export-config: tokens are minted by the live endhost API
+// bridges, so this only works while the topology is running.
+#[tauri::command]
+#[specta::specta]
+fn export_as_config(
+    state: tauri::State<'_, AppState>,
+    path: String,
+    ttl_seconds: u32,
+) -> Result<(), String> {
+    let state = state.lock().unwrap();
+    let running = state.running()?;
+
+    as_config::write_as_config(
+        &running.topology,
+        |isd_as| ehapi_bridge::mint_token_for(&running.ehapi_bridges, isd_as, ttl_seconds),
+        std::path::Path::new(&path),
+    )
+}
+
 #[derive(serde::Serialize, Clone)]
 struct LogOutputPayload {
     stream_id: String,
@@ -402,6 +437,8 @@ pub fn run() {
         restart_scion_network,
         reset_to_setup,
         list_topology_files,
+        export_as_config,
+        get_topology_name,
         start_log_stream,
         stop_log_stream,
         ehapi_bridge::mint_token,
@@ -478,6 +515,8 @@ mod tests {
                 super::restart_scion_network,
                 super::reset_to_setup,
                 super::list_topology_files,
+                super::export_as_config,
+                super::get_topology_name,
                 super::start_log_stream,
                 super::stop_log_stream,
                 super::ehapi_bridge::mint_token,

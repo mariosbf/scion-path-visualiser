@@ -7,6 +7,7 @@ import {
   TablerIcon,
 } from "@tabler/icons-react";
 import { createFileRoute, Outlet } from "@tanstack/react-router";
+import { ExportAsConfigButton } from "../components/ExportAsConfigButton";
 import { NavHeader } from "../components/NavHeader";
 import { NavItem } from "../components/NavItem";
 import { RestartNetworkButton } from "../components/RestartNetworkButton";
@@ -51,6 +52,7 @@ export function AppLayout() {
           <AppShell.Section>
             <Divider mb={8} />
             <Box p={4} mb={5}>
+              <ExportAsConfigButton expanded={opened} />
               <RestartNetworkButton expanded={opened} />
               <ReturnToSetupButton expanded={opened} />
             </Box>

@@ -45,6 +45,22 @@ async listTopologyFiles(folder: string) : Promise<Result<string[], string>> {
     else return { status: "error", error: e  as any };
 }
 },
+async exportAsConfig(path: string, ttlSeconds: number) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("export_as_config", { path, ttlSeconds }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async getTopologyName() : Promise<Result<string, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("get_topology_name") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
 async startLogStream(serviceName: string) : Promise<Result<string, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("start_log_stream", { serviceName }) };
