@@ -2,6 +2,7 @@ pub mod ehapi_bridge;
 pub mod grafana;
 pub mod netcond;
 pub mod paths;
+pub mod setup;
 pub mod status;
 pub mod topology;
 pub mod util;
@@ -14,9 +15,7 @@ use tauri::{Emitter, Manager};
 use tauri_plugin_log::log::{debug, info};
 use tauri_specta::{collect_commands, Builder};
 
-use crate::ehapi_bridge::start_ehapi_bridges;
-use crate::topology::{load_topology, Topology};
-use crate::util::stream_output;
+use crate::topology::Topology;
 
 pub type AppState = Mutex<AppStateInner>;
 
@@ -74,6 +73,18 @@ pub struct AppConfig {
     pub run_grafana: bool,
 }
 
+impl AppConfig {
+    fn to_setup_config(&self) -> setup::SetupConfig {
+        setup::SetupConfig {
+            scion_folder: std::path::PathBuf::from(&self.scion_folder),
+            topo_file: self.topo_file.clone(),
+            run_topology: self.run_topology,
+            docker: matches!(self.running_mode, RunningMode::Docker),
+            run_grafana: self.run_grafana,
+        }
+    }
+}
+
 #[tauri::command]
 #[specta::specta]
 async fn setup_scion_network(
@@ -81,131 +92,31 @@ async fn setup_scion_network(
     state: tauri::State<'_, AppState>,
     config: AppConfig,
 ) -> Result<String, String> {
-    use std::process::Stdio;
+    let setup_config = config.to_setup_config();
 
-    let scion_folder = std::path::Path::new(&config.scion_folder);
+    let ehapi_token_dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| format!("Cannot resolve app data dir: {e}"))?
+        .join("ehapi-bridge-tokens");
 
-    app.emit("scion-setup-phase", "Generating topology configuration…")
+    let app_for_sink = app.clone();
+    let sink: setup::ProgressSink = Arc::new(move |progress| {
+        match progress {
+            setup::SetupProgress::Phase(msg) => app_for_sink.emit("scion-setup-phase", msg),
+            setup::SetupProgress::Output(line) => app_for_sink.emit("scion-setup-output", line),
+        }
         .ok();
+    });
 
-    // Generate topology
-    let mut topo_args = vec!["topology", "-c", config.topo_file.as_str()];
-    if config.run_topology && matches!(config.running_mode, RunningMode::Docker) {
-        topo_args.push("-d");
-    }
-    let mut child = tokio::process::Command::new("./scion.sh")
-        .args(&topo_args)
-        .current_dir(scion_folder)
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn()
-        .map_err(|e| format!("Failed to spawn scion.sh: {e}"))?;
-
-    stream_output(&app, &mut child, "scion-setup-output").await?;
-
-    let status = child
-        .wait()
-        .await
-        .map_err(|e| format!("Failed to wait for scion.sh topology: {e}"))?;
-
-    if !status.success() {
-        return Err(format!("scion.sh topology exited with status {status}"));
-    }
-
-    // Read topology and store in state
-    let gen_dir = scion_folder.join("gen");
-    let topo = load_topology(&gen_dir).map_err(|e| format!("Failed to load topology: {e}"))?;
-
-    let as_ids: Vec<String> = topo.ases.keys().map(|k| k.0.to_string()).collect();
-    if config.run_grafana {
-        app.emit("scion-setup-phase", "Configuring monitoring…")
-            .ok();
-        grafana::generate_grafana_config(&gen_dir, &as_ids)
-            .map_err(|e| format!("Failed to generate Grafana config: {e}"))?;
-        grafana::patch_monitoring_dc(&gen_dir)
-            .map_err(|e| format!("Failed to patch monitoring-dc.yml: {e}"))?;
-    }
-
-    if config.run_topology {
-        // Start SCION topology
-        app.emit("scion-setup-phase", "Starting SCION topology…")
-            .ok();
-
-        let mut start_args = vec!["start"];
-        if matches!(config.running_mode, RunningMode::Docker) {
-            start_args.push("-d");
-        }
-        let mut child = tokio::process::Command::new("./scion.sh")
-            .args(&start_args)
-            .current_dir(scion_folder)
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .spawn()
-            .map_err(|e| format!("Failed to spawn scion.sh: {e}"))?;
-
-        stream_output(&app, &mut child, "scion-setup-output").await?;
-
-        let status = child
-            .wait()
-            .await
-            .map_err(|e| format!("Failed to wait for scion.sh start: {e}"))?;
-
-        if !status.success() {
-            return Err(format!("scion.sh start exited with status {status}"));
-        }
-
-        // Start monitoring stack (Prometheus, Jaeger, Grafana)
-        app.emit("scion-setup-phase", "Starting monitoring stack…")
-            .ok();
-
-        let mut child = tokio::process::Command::new("./scion.sh")
-            .args(["start-monitoring"])
-            .current_dir(scion_folder)
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .spawn()
-            .map_err(|e| format!("Failed to spawn scion.sh start-monitoring: {e}"))?;
-
-        stream_output(&app, &mut child, "scion-setup-output").await?;
-
-        let status = child
-            .wait()
-            .await
-            .map_err(|e| format!("Failed to wait for scion.sh start-monitoring: {e}"))?;
-
-        if !status.success() {
-            return Err(format!(
-                "scion.sh start-monitoring exited with status {status}"
-            ));
-        }
-    }
-
-    // Start endhost API bridges (only when running the topology)
-    let ehapi_bridges = if config.run_topology {
-        app.emit(
-            "scion-setup-phase",
-            "Starting endhost API bridges".to_string(),
-        )
-        .ok();
-        let ehapi_token_dir = app
-            .path()
-            .app_data_dir()
-            .map_err(|e| format!("Cannot resolve app data dir: {e}"))?
-            .join("ehapi-bridge-tokens");
-        let ehapi_bridge_log_dir = scion_folder.join("logs");
-        start_ehapi_bridges(
-            &ehapi_bridge_log_dir,
-            &ehapi_token_dir,
-            &topo,
-            matches!(config.running_mode, RunningMode::Docker),
-        )?
-    } else {
-        EhapiBridgeMap::new()
-    };
+    let setup::SetupOutcome {
+        topology: topo,
+        ehapi_bridges,
+    } = setup::run_setup(&setup_config, &ehapi_token_dir, sink).await?;
 
     // Spawn periodic status check
     let app_for_status = app.clone();
-    let folder_for_status = scion_folder.to_path_buf();
+    let folder_for_status = setup_config.scion_folder.clone();
     let status_task = if config.run_topology
         && matches!(config.running_mode, RunningMode::Supervisord)
     {
@@ -261,61 +172,35 @@ async fn restart_scion_network(
     app: tauri::AppHandle,
     state: tauri::State<'_, AppState>,
 ) -> Result<String, String> {
-    use std::process::Stdio;
-
     let config = {
         let guard = state.lock().unwrap();
         let running = guard.running()?;
         running.config.clone()
     };
+    let scion_folder = std::path::PathBuf::from(&config.scion_folder);
+    let sink = output_sink(&app);
 
     app.emit("scion-setup-phase", "Stopping SCION topology…")
         .ok();
-
-    let mut child = tokio::process::Command::new("./scion.sh")
-        .args(vec!["stop"])
-        .current_dir(&config.scion_folder)
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn()
-        .map_err(|e| format!("Failed to spawn scion.sh stop: {e}"))?;
-
-    stream_output(&app, &mut child, "scion-setup-output").await?;
-
-    let status = child
-        .wait()
-        .await
-        .map_err(|e| format!("Failed to wait for scion.sh stop: {e}"))?;
-    if !status.success() {
-        return Err(format!("scion.sh stop exited with status {status}"));
-    }
+    setup::run_scion_sh(&scion_folder, &["stop"], &sink).await?;
 
     app.emit("scion-setup-phase", "Starting SCION topology…")
         .ok();
-
-    let mut start_args = vec!["start"];
-    if matches!(config.running_mode, RunningMode::Docker) {
-        start_args.push("-d");
-    }
-    let mut child = tokio::process::Command::new("./scion.sh")
-        .args(&start_args)
-        .current_dir(&config.scion_folder)
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn()
-        .map_err(|e| format!("Failed to spawn scion.sh start: {e}"))?;
-
-    stream_output(&app, &mut child, "scion-setup-output").await?;
-
-    let status = child
-        .wait()
-        .await
-        .map_err(|e| format!("Failed to wait for scion.sh start: {e}"))?;
-    if !status.success() {
-        return Err(format!("scion.sh start exited with status {status}"));
-    }
+    let docker = matches!(config.running_mode, RunningMode::Docker);
+    setup::run_scion_sh(&scion_folder, &setup::start_args(docker), &sink).await?;
 
     Ok("SCION network restarted".to_string())
+}
+
+// Sink forwarding scion.sh output lines to the frontend; phase changes are
+// emitted directly where they occur.
+fn output_sink(app: &tauri::AppHandle) -> setup::ProgressSink {
+    let app = app.clone();
+    Arc::new(move |progress| {
+        if let setup::SetupProgress::Output(line) = progress {
+            app.emit("scion-setup-output", line).ok();
+        }
+    })
 }
 
 #[tauri::command]
@@ -324,13 +209,11 @@ async fn reset_to_setup(
     app: tauri::AppHandle,
     state: tauri::State<'_, AppState>,
 ) -> Result<(), String> {
-    use std::process::Stdio;
-
     let (scion_folder, run_topology) = {
         let guard = state.lock().unwrap();
         let running = guard.running()?;
         (
-            running.config.scion_folder.clone(),
+            std::path::PathBuf::from(&running.config.scion_folder),
             running.config.run_topology,
         )
     };
@@ -338,24 +221,7 @@ async fn reset_to_setup(
     if run_topology {
         app.emit("scion-setup-phase", "Stopping SCION topology…")
             .ok();
-
-        let mut child = tokio::process::Command::new("./scion.sh")
-            .args(["stop"])
-            .current_dir(&scion_folder)
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .spawn()
-            .map_err(|e| format!("Failed to spawn scion.sh stop: {e}"))?;
-
-        stream_output(&app, &mut child, "scion-setup-output").await?;
-
-        let status = child
-            .wait()
-            .await
-            .map_err(|e| format!("Failed to wait for scion.sh stop: {e}"))?;
-        if !status.success() {
-            return Err(format!("scion.sh stop exited with status {status}"));
-        }
+        setup::run_scion_sh(&scion_folder, &["stop"], &output_sink(&app)).await?;
     }
 
     let old = {
@@ -609,6 +475,8 @@ mod tests {
             .commands(collect_commands![
                 super::get_topology,
                 super::setup_scion_network,
+                super::restart_scion_network,
+                super::reset_to_setup,
                 super::list_topology_files,
                 super::start_log_stream,
                 super::stop_log_stream,

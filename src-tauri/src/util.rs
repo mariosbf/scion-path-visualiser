@@ -1,35 +1,44 @@
 use tauri::Emitter;
 
-pub async fn stream_output(
-    app: &tauri::AppHandle,
+pub async fn stream_output_to(
     child: &mut tokio::process::Child,
-    event: &str,
+    sink: impl Fn(String) + Clone + Send + Sync + 'static,
 ) -> Result<(), String> {
     use tokio::io::{AsyncBufReadExt, BufReader};
 
     let stdout = child.stdout.take().ok_or("stdout not piped")?;
     let stderr = child.stderr.take().ok_or("stderr not piped")?;
 
-    let app_out = app.clone();
-    let event_out = event.to_owned();
+    let sink_out = sink.clone();
     let stdout_task = tokio::spawn(async move {
         let mut lines = BufReader::new(stdout).lines();
         while let Ok(Some(line)) = lines.next_line().await {
-            app_out.emit(&event_out, line).ok();
+            sink_out(line);
         }
     });
 
-    let app_err = app.clone();
-    let event_err = event.to_owned();
     let stderr_task = tokio::spawn(async move {
         let mut lines = BufReader::new(stderr).lines();
         while let Ok(Some(line)) = lines.next_line().await {
-            app_err.emit(&event_err, line).ok();
+            sink(line);
         }
     });
 
     let _ = tokio::join!(stdout_task, stderr_task);
     Ok(())
+}
+
+pub async fn stream_output(
+    app: &tauri::AppHandle,
+    child: &mut tokio::process::Child,
+    event: &str,
+) -> Result<(), String> {
+    let app = app.clone();
+    let event = event.to_owned();
+    stream_output_to(child, move |line| {
+        app.emit(&event, line).ok();
+    })
+    .await
 }
 
 pub fn clear_directory(path: &std::path::Path) -> Result<(), String> {

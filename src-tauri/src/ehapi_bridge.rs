@@ -309,6 +309,29 @@ pub fn start_ehapi_bridges(
     Ok(map)
 }
 
+pub fn mint_token_for(
+    map: &EhapiBridgeMap,
+    isd_as: scion_proto::address::IsdAsn,
+    ttl_seconds: u32,
+) -> Result<String, String> {
+    let app_state = map
+        .get(&isd_as)
+        .ok_or_else(|| format!("No endhost API bridge for AS {isd_as}"))?;
+
+    let expires_at = std::time::SystemTime::now()
+        .checked_add(std::time::Duration::from_secs(ttl_seconds as u64))
+        .ok_or("Invalid validity duration")?;
+
+    let identity = TokenIdentity { email: None };
+
+    let (token, _) = app_state
+        .token_authority
+        .create_token(identity, expires_at)
+        .map_err(|e| format!("Failed to create token: {e}"))?;
+
+    Ok(token)
+}
+
 #[tauri::command]
 #[specta::specta]
 pub fn mint_token(
@@ -324,20 +347,5 @@ pub fn mint_token(
         isd_as.0, ttl_seconds
     );
 
-    let app_state = map
-        .get(&isd_as.0)
-        .ok_or_else(|| format!("No endhost API bridge for AS {}", isd_as.0))?;
-
-    let expires_at = std::time::SystemTime::now()
-        .checked_add(std::time::Duration::from_secs(ttl_seconds as u64))
-        .ok_or("Invalid validity duration")?;
-
-    let identity = TokenIdentity { email: None };
-
-    let (token, _) = app_state
-        .token_authority
-        .create_token(identity, expires_at)
-        .map_err(|e| format!("Failed to create token: {e}"))?;
-
-    Ok(token)
+    mint_token_for(map, isd_as.0, ttl_seconds)
 }
