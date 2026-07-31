@@ -5420,6 +5420,8 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "chrono",
+ "clap",
+ "dirs",
  "endhost-api-client",
  "glob",
  "nix 0.31.3",
