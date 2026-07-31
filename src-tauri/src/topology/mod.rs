@@ -620,7 +620,7 @@ mod tests {
 
     #[test]
     fn build_topology_produces_correct_ases() {
-        let topo = build_topology(make_fixture(), HashMap::new(), make_sd_fixture(), RawIfidConfig { by_as: HashMap::new() }).unwrap();
+        let topo = build_topology(make_fixture(), HashMap::new(), make_sd_fixture(), make_ifid_fixture()).unwrap();
         assert_eq!(topo.ases.len(), 2);
         let as110 = topo
             .ases
@@ -639,13 +639,13 @@ mod tests {
 
     #[test]
     fn build_topology_deduplicates_to_one_link() {
-        let topo = build_topology(make_fixture(), HashMap::new(), make_sd_fixture(), RawIfidConfig { by_as: HashMap::new() }).unwrap();
+        let topo = build_topology(make_fixture(), HashMap::new(), make_sd_fixture(), make_ifid_fixture()).unwrap();
         assert_eq!(topo.links.len(), 1);
     }
 
     #[test]
     fn build_topology_child_link_endpoints() {
-        let topo = build_topology(make_fixture(), HashMap::new(), make_sd_fixture(), RawIfidConfig { by_as: HashMap::new() }).unwrap();
+        let topo = build_topology(make_fixture(), HashMap::new(), make_sd_fixture(), make_ifid_fixture()).unwrap();
         let link = &topo.links[0];
         assert!(matches!(link.link_type, LinkType::Child));
         // Link processed from smaller IsdAsn side (1-ff00:0:110 < 1-ff00:0:111)
@@ -699,6 +699,31 @@ mod tests {
         assert!(raw.border_routers.contains_key("br1"));
     }
 
+    fn make_ifid_fixture() -> RawIfidConfig {
+        let ia110: IsdAsnDef = serde_json::from_str(r#""1-ff00:0:110""#).unwrap();
+        let ia111: IsdAsnDef = serde_json::from_str(r#""1-ff00:0:111""#).unwrap();
+        let mut by_as = HashMap::new();
+        by_as.insert(
+            ia110,
+            vec![RawIfidConfigItem {
+                local_router: "br1-ff00_0_110-1".to_string(),
+                local_ifid: 1001,
+                remote_router: "br1-ff00_0_111-1".to_string(),
+                remote_ifid: 2001,
+            }],
+        );
+        by_as.insert(
+            ia111,
+            vec![RawIfidConfigItem {
+                local_router: "br1-ff00_0_111-1".to_string(),
+                local_ifid: 2001,
+                remote_router: "br1-ff00_0_110-1".to_string(),
+                remote_ifid: 1001,
+            }],
+        );
+        RawIfidConfig { by_as }
+    }
+
     fn make_sd_fixture() -> HashMap<IsdAsnDef, RawSdConfig> {
         let mut sd_map = HashMap::new();
         let ia110: IsdAsnDef = serde_json::from_str(r#""1-ff00:0:110""#).unwrap();
@@ -736,7 +761,7 @@ mod tests {
 
     #[test]
     fn build_topology_includes_daemon_info() {
-        let topo = build_topology(make_fixture(), HashMap::new(), make_sd_fixture(), RawIfidConfig { by_as: HashMap::new() }).unwrap();
+        let topo = build_topology(make_fixture(), HashMap::new(), make_sd_fixture(), make_ifid_fixture()).unwrap();
         let as110 = topo
             .ases
             .iter()
@@ -753,7 +778,7 @@ mod tests {
 
     #[test]
     fn build_topology_errors_on_missing_daemon() {
-        let result = build_topology(make_fixture(), HashMap::new(), HashMap::new(), RawIfidConfig { by_as: HashMap::new() });
+        let result = build_topology(make_fixture(), HashMap::new(), HashMap::new(), make_ifid_fixture());
         assert!(result.is_err());
         let msg = result.unwrap_err().to_string();
         assert!(
