@@ -68,12 +68,22 @@ you press Ctrl-C, then stops it with `scion.sh stop`.
 
 ```sh
 cd src-tauri
-cargo run --bin scion-topo -- \
+cargo build --bin scion-topo
+# Needed for --docker: the endhost API bridges enter the control-service
+# containers' network namespaces. Repeat after every rebuild.
+sudo setcap cap_sys_admin+eip target/debug/scion-topo
+target/debug/scion-topo \
   --scion-folder ~/scion \
   --topo-file ~/scion/topology/tiny.topo \
   --docker \
   --export-config as-config.json
 ```
+
+Without the capability, the topology starts but the bridges never come up, and
+there is no error message. Anything that uses the endhost API, such as the
+[path example](#example-fetching-paths-with-the-config) below, then gets
+`Connection refused` on port 31100. `cargo run` rebuilds the binary and drops the
+capability, so run the binary directly after `setcap`.
 
 | Flag | Description |
 | --- | --- |
@@ -101,6 +111,68 @@ cargo run --bin scion-topo -- \
 }
 ```
 
+Each token is accepted only by the endhost API bridge of its own AS, and the
+bridges run inside the app (or `scion-topo`) process. The config therefore works
+only while the app or `scion-topo` is running the topology. Signing keys are
+kept in the token directory, so tokens stay valid across restarts until their
+TTL expires.
+
+### Example: fetching paths with the config
+
+[`src-tauri/examples/fetch_paths.rs`](src-tauri/examples/fetch_paths.rs) is a
+small program that reads the exported config and lists the paths between two
+ASes. It uses the SCION SDK crates the app depends on:
+
+```rust
+#[derive(Deserialize)]
+struct AsConfig {
+    endhost_api_bridge: std::net::SocketAddr,
+    endhost_api_bridge_token: String,
+}
+
+let configs: HashMap<String, AsConfig> =
+    serde_json::from_str(&std::fs::read_to_string("as-config.json")?)?;
+let src_cfg = &configs["1-ff00:0:111"];
+
+// Connect to the source AS's endhost API bridge, authenticating with its token.
+let url = url::Url::parse(&format!("http://{}", src_cfg.endhost_api_bridge))?;
+let mut client = CrpcEndhostApiClient::new(&url)?;
+client.use_token_source(Arc::new(StaticTokenSource::from(
+    src_cfg.endhost_api_bridge_token.clone(),
+)));
+
+// Fetch path segments through the bridge and combine them into end-to-end paths.
+let fetcher = PathFetcherImpl::new(
+    vec![(
+        "endhost-api".to_string(),
+        Box::new(EndhostApiSegmentFetcher::new(Arc::new(client))),
+    )],
+    Duration::from_secs(10),
+);
+let paths = fetcher
+    .fetch_paths("1-ff00:0:111".parse()?, "1-ff00:0:112".parse()?)
+    .await?;
+```
+
+Start a topology with `--export-config`, then, in a second terminal, run:
+
+```sh
+cd src-tauri
+cargo run --example fetch_paths -- as-config.json 1-ff00:0:111 1-ff00:0:112
+```
+
+The output looks like this (addresses and interface IDs depend on the topology):
+
+```
+2 path(s) from 1-ff00:0:111 to 1-ff00:0:112:
+  [mtu 1472, expires 2026-11-04 18:00:00 UTC] 1-ff00:0:111#41 > 1-ff00:0:110#2 > 1-ff00:0:110#3 > 1-ff00:0:112#453
+  ...
+```
+
+The full file also installs a `rustls` crypto provider at startup, which the
+endhost API client needs. Leaving that step out makes the first request panic
+with `No provider set`.
+
 ## Project layout
 
 ```
@@ -118,6 +190,7 @@ src-tauri/
   src/grafana.rs         Grafana provisioning and dashboards
   src/as_config.rs       Per-AS JSON config export
   src/bin/cli.rs         The scion-topo CLI
+  examples/fetch_paths.rs  Using an exported AS config to fetch paths
   scripts/netcond.sh     tc-netem helper run with sudo
 ```
 
